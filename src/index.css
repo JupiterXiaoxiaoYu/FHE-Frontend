@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #f0f2f5;
+}
+
+.ant-layout {
+  min-height: 100vh;
+}
+
+.ant-layout-header {
+  padding: 0 24px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.ant-card {
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+}
+
+.ant-card-hoverable:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+.section-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 24px;
+}
+
+.ant-form-
+
+.ant-menu {
+  border-bottom: none;
+}
+
+/* Custom Table Styles */
+.custom-table .ant-table {
+  @apply rounded-lg overflow-hidden;
+}
+
+.custom-table .ant-table-thead > tr > th {
+  @apply bg-gray-50 text-gray-700 font-semibold;
+}
+
+.custom-table .ant-table-tbody > tr:hover > td {
+  @apply bg-blue-50;
+}
+
+/* Custom Modal Styles */
+.custom-modal .ant-modal-content {
+  @apply rounded-lg;
+}
+
+.custom-modal .ant-modal-header {
+  @apply rounded-t-lg border-b border-gray-200 bg-gray-50;
+}
+
+.custom-modal .ant-modal-body {
+  @apply p-6;
+}
+
+/* Custom Button Hover Effects */
+.ant-btn-primary {
+  @apply transition-all duration-300;
+}
+
+.ant-btn-primary:hover {
+  @apply shadow-md transform -translate-y-0.5;
+}

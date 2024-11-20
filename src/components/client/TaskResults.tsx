@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Tag, message, Modal, Space, Typography, Form, Input, Select } from 'antd';
 import { 
   CheckCircleOutlined, 
@@ -11,12 +11,14 @@ import {
   BankOutlined 
 } from '@ant-design/icons';
 import { Task } from '../../types';
+import { ethers } from 'ethers';
+import contractConfig from '../../config/contracts';
 
 const { Paragraph, Title, Text } = Typography;
 const { Option } = Select;
 
 interface BusinessTaskRequest {
-  bankWeId: string;
+  bankAddress: string;
   businessType: string;
 }
 
@@ -26,20 +28,20 @@ interface TaskResult {
   decryptedResult?: string;
 }
 
-const mockTasks: Task[] = [
-  {
-    id: '1',
-    bankId: 'bank1',
-    businessType: 'Loan Application',
-    status: 'pending'
-  },
-  {
-    id: '2',
-    bankId: 'bank2',
-    businessType: 'Credit Assessment',
-    status: 'pending'
-  }
-];
+// const mockTasks: Task[] = [
+//   {
+//     id: '1',
+//     bankId: 'bank1',
+//     businessType: 'Loan Application',
+//     status: 'pending'
+//   },
+//   {
+//     id: '2',
+//     bankId: 'bank2',
+//     businessType: 'Credit Assessment',
+//     status: 'pending'
+//   }
+// ];
 
 export const TaskResults: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage();
@@ -49,6 +51,11 @@ export const TaskResults: React.FC = () => {
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [taskResult, setTaskResult] = useState<TaskResult | null>(null);
   const [isDecrypted, setIsDecrypted] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>();
+
+  useEffect(() => {
+    refreshTasks();
+  }, [isModalVisible]);
 
   const handleProcessTask = (task: Task) => {
     setCurrentTask(task);
@@ -103,13 +110,92 @@ export const TaskResults: React.FC = () => {
 
   const handleNewTask = async (values: BusinessTaskRequest) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      messageApi.success('Business task created successfully!');
-      setIsNewTaskModalVisible(false);
-      form.resetFields();
+      const storedWallet = localStorage.getItem('wallet');
+      if (!storedWallet) {
+        messageApi.error('Please connect your wallet first!');
+        return;
+      }
+
+      const wallet = JSON.parse(storedWallet);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
+      
+      const taskManagement = new ethers.Contract(
+        contractConfig.TaskManagement.address,
+        contractConfig.TaskManagement.abi,
+        signer
+      );
+
+      const tx = await taskManagement.createTask(
+        values.bankAddress,
+        values.businessType
+      );
+
+      console.log('Transaction sent:', tx.hash);
+      
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+
+      const taskCreatedEvent = receipt.events?.find(
+        (event: any) => event.event === 'TaskCreated'
+      );
+
+      if (taskCreatedEvent) {
+        const taskId = taskCreatedEvent.args.taskId.toString();
+        messageApi.success(`Business task created successfully! Task ID: ${taskId}`);
+        
+        setIsNewTaskModalVisible(false);
+        form.resetFields();
+
+        // await refreshTasks();
+      } else {
+        throw new Error('Task creation event not found in transaction receipt');
+      }
+
+    } catch (error: any) {
+      console.error('Failed to create task:', error);
+      
+      if (error.message.includes('User not registered')) {
+        messageApi.error('You must be a registered user to create tasks!');
+      } else if (error.message.includes('Invalid bank address')) {
+        messageApi.error('The provided bank address is not valid!');
+      } else {
+        messageApi.error('Failed to create business task: ' + error.message);
+      }
+    }
+  };
+
+  const refreshTasks = async () => {
+    try {
+      const storedWallet = localStorage.getItem('wallet');
+      if (!storedWallet) return;
+
+      const wallet = JSON.parse(storedWallet);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
+
+      const taskManagement = new ethers.Contract(
+        contractConfig.TaskManagement.address,
+        contractConfig.TaskManagement.abi,
+        signer
+      );
+
+      const pendingTasks = await taskManagement.getBankPendingTasks(wallet.address);
+
+      console.log('Pending tasks:', pendingTasks);
+      
+      const formattedTasks = pendingTasks.map((task: any) => ({
+        id: task.taskId.toString(),
+        bankId: task.bankAddress,
+        businessType: task.taskType,
+        status: task.isCompleted ? 'completed' : 'pending',
+        createdAt: new Date(task.createdAt.toNumber() * 1000)
+      }));
+
+      setTasks(formattedTasks);
     } catch (error) {
-      messageApi.error('Failed to create business task!');
-      console.error('Task creation failed:', error);
+      console.error('Failed to refresh tasks:', error);
+      messageApi.error('Failed to load tasks');
     }
   };
 
@@ -175,7 +261,7 @@ export const TaskResults: React.FC = () => {
         }
       >
         <Table
-          dataSource={mockTasks}
+          dataSource={tasks}
           columns={columns}
           rowKey="id"
           pagination={false}
@@ -187,7 +273,7 @@ export const TaskResults: React.FC = () => {
         title={
           <div className="flex items-center space-x-2">
             <PlayCircleOutlined className="text-blue-500" />
-            <span>Process Task: {currentTask?.id}</span>
+            <span> Process Task: {currentTask?.id}</span>
           </div>
         }
         open={isModalVisible}
@@ -275,13 +361,13 @@ export const TaskResults: React.FC = () => {
           className="mt-4"
         >
           <Form.Item
-            name="bankWeId"
-            label={<Text strong>Bank WeID</Text>}
-            rules={[{ required: true, message: 'Please input bank WeID!' }]}
+            name="bankAddress"
+            label={<Text strong>Bank Address</Text>}
+            rules={[{ required: true, message: 'Please input bank address!' }]}
           >
             <Input 
               prefix={<BankOutlined className="text-gray-400" />} 
-              placeholder="Enter bank WeID"
+              placeholder="Enter Bank Address"
               className="rounded-lg"
             />
           </Form.Item>

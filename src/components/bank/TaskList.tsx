@@ -3,8 +3,16 @@ import { Card, Table, Tag, Button, message, Modal, List, Typography, Spin } from
 import { CheckCircleOutlined, SyncOutlined, LockOutlined, CalculatorOutlined } from '@ant-design/icons';
 import { ethers } from 'ethers';
 import contractConfig from '../../config/contracts';
+import { DataType } from '../../services/fheApi';
 
 const { Text } = Typography;
+
+//maps DataType to taskType
+const taskTypeMap: Record<string, DataType> = {
+  loan: 'monthly_income',
+  credit: 'credit_score',
+  mortgage: 'property_value'
+};
 
 interface ContractTask {
   taskId: string;
@@ -25,6 +33,13 @@ export const TaskList: React.FC = () => {
   const [tasks, setTasks] = useState<ContractTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [processingTaskId, setProcessingTaskId] = useState<string | null>(null);
+  const [userDataLoading, setUserDataLoading] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+  const [computationLoading, setComputationLoading] = useState(false);
+  const [computationResult, setComputationResult] = useState<string | null>(null);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [isDataModalVisible, setIsDataModalVisible] = useState(false);
+  const [expandedData, setExpandedData] = useState<Record<number, boolean>>({});
 
   // 获取银行任务列表
   const fetchTasks = async () => {
@@ -86,11 +101,69 @@ export const TaskList: React.FC = () => {
     setIsModalVisible(true);
   };
 
-  const handleRequestComputation = async () => {
+  const handleRequestUserData = async () => {
     if (!currentTask) return;
-
     try {
-      setProcessingTaskId(currentTask.taskId);
+      setUserDataLoading(true);
+      const storedWallet = localStorage.getItem('wallet');
+      if (!storedWallet) {
+        messageApi.error('Please connect your wallet first!');
+        return;
+      }
+
+      const wallet = JSON.parse(storedWallet);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
+      
+      const dataStorage = new ethers.Contract(
+        contractConfig.DataStorage.address,
+        contractConfig.DataStorage.abi,
+        signer
+      );
+
+      // 获取用户数据
+      console.log('currentTask.taskType', currentTask.taskType);
+      console.log('taskTypeMap[currentTask.taskType as DataType]', taskTypeMap[currentTask.taskType as DataType]);
+      console.log('currentTask.userAddress', currentTask.userAddress);
+      const data = await dataStorage.getDataByUserAndType(
+        currentTask.userAddress,
+        taskTypeMap[currentTask.taskType as DataType]
+      );
+
+      console.log('data', data);
+
+      setUserData(data);
+      messageApi.success('User data retrieved successfully!');
+    } catch (error: any) {
+      console.error('Failed to get user data:', error);
+      messageApi.error('Failed to get user data: ' + error.message);
+    } finally {
+      setUserDataLoading(false);
+    }
+  };
+
+  const handleRequestComputation = async () => {
+    if (!currentTask || !userData) return;
+    try {
+      setComputationLoading(true);
+      // 这里应该是实际的FHE计算
+      // 模拟计算过程
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = 'encrypted-result-' + Date.now();
+      setComputationResult(result);
+      messageApi.success('FHE computation completed!');
+    } catch (error: any) {
+      console.error('Failed to compute result:', error);
+      messageApi.error('Failed to compute result: ' + error.message);
+    } finally {
+      setComputationLoading(false);
+    }
+  };
+
+  const handlePublishResult = async () => {
+    if (!currentTask || !computationResult) return;
+    try {
+      setPublishLoading(true);
       const storedWallet = localStorage.getItem('wallet');
       if (!storedWallet) {
         messageApi.error('Please connect your wallet first!');
@@ -107,12 +180,9 @@ export const TaskList: React.FC = () => {
         signer
       );
 
-      // 这里应该是实际的计算结果，现在用模拟数据
-      const mockResult = ethers.utils.toUtf8Bytes('encrypted-result-' + Date.now());
-      
       const tx = await taskManagement.completeTask(
         currentTask.taskId,
-        mockResult
+        ethers.utils.toUtf8Bytes(computationResult)
       );
 
       console.log('Transaction sent:', tx.hash);
@@ -122,20 +192,22 @@ export const TaskList: React.FC = () => {
       messageApi.success('Task completed successfully!');
       setIsModalVisible(false);
       setCurrentTask(null);
-      fetchTasks(); // 刷新任务列表
-
+      setUserData(null);
+      setComputationResult(null);
+      fetchTasks();
     } catch (error: any) {
-      console.error('Failed to complete task:', error);
-      if (error.message.includes('Caller is not bank')) {
-        messageApi.error('Only registered banks can complete tasks!');
-      } else if (error.message.includes('Task already completed')) {
-        messageApi.error('This task has already been completed!');
-      } else {
-        messageApi.error('Failed to complete task: ' + error.message);
-      }
+      console.error('Failed to publish result:', error);
+      messageApi.error('Failed to publish result: ' + error.message);
     } finally {
-      setProcessingTaskId(null);
+      setPublishLoading(false);
     }
+  };
+
+  const toggleExpand = (index: number) => {
+    setExpandedData(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
   };
 
   const columns = [
@@ -226,24 +298,15 @@ export const TaskList: React.FC = () => {
       <Modal
         title={`Process Task: ${currentTask?.taskId}`}
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setIsModalVisible(false)}>
-            Cancel
-          </Button>,
-          <Button
-            key="compute"
-            type="primary"
-            icon={<CalculatorOutlined />}
-            onClick={handleRequestComputation}
-            loading={processingTaskId === currentTask?.taskId}
-          >
-            Complete Task with FHE Computation
-          </Button>
-        ]}
+        onCancel={() => {
+          setIsModalVisible(false);
+          setUserData(null);
+          setComputationResult(null);
+        }}
+        footer={null}
         width={600}
       >
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
             <h3 className="text-lg font-semibold mb-2">Task Details:</h3>
             <div className="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -252,6 +315,125 @@ export const TaskList: React.FC = () => {
               <p><strong>Created At:</strong> {currentTask?.createdAt && 
                 new Date(currentTask.createdAt).toLocaleString()}</p>
             </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <Button
+                type="primary"
+                icon={<LockOutlined />}
+                onClick={handleRequestUserData}
+                loading={userDataLoading}
+                disabled={!!userData}
+                block
+              >
+                Request User Data According to Business Type
+              </Button>
+              {userData && (
+                <div className="mt-2 space-y-2">
+                  <div className="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
+                    <Text type="success">User data retrieved successfully!</Text>
+                    <Button 
+                      type="link" 
+                      onClick={() => setIsDataModalVisible(true)}
+                      className="ml-2"
+                    >
+                      View Data
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Button
+                type="primary"
+                icon={<CalculatorOutlined />}
+                onClick={handleRequestComputation}
+                loading={computationLoading}
+                disabled={!userData || !!computationResult}
+                block
+              >
+                Request FHE Computation
+              </Button>
+              {computationResult && (
+                <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                  <Text type="success">Computation completed successfully!</Text>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={handlePublishResult}
+                loading={publishLoading}
+                disabled={!computationResult}
+                block
+              >
+                Publish Result and Complete Task
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title="User Data Details"
+        open={isDataModalVisible}
+        onCancel={() => {
+          setIsDataModalVisible(false);
+          setExpandedData({});
+        }}
+        footer={null}
+        width={500}
+      >
+        <div className="max-h-96 overflow-y-auto">
+          <div className="space-y-4">
+            {userData && userData.map((entry: any, index: number) => (
+              <Card key={index} size="small" className="shadow-sm">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Text strong>Data Entry {index + 1} {" "} </Text>
+                    <Tag color="blue">{entry.dataType}</Tag>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 mt-2">
+                    <div>
+                      <Text type="secondary">Bank Address:</Text>
+                      <div className="font-mono bg-gray-50 p-2 rounded text-sm mt-1">
+                        {entry.bankAddress}
+                      </div>
+                    </div>
+                    <div>
+                      <Text type="secondary">Encrypted Data:</Text>
+                      <div className="font-mono bg-gray-50 p-2 rounded text-sm mt-1">
+                        <div className="break-all">
+                          {expandedData[index] 
+                            ? entry.encryptedData
+                            : entry.encryptedData.substring(0, 50) + '...'
+                          }
+                        </div>
+                        <Button 
+                          type="link" 
+                          onClick={() => toggleExpand(index)}
+                          size="small"
+                          className="mt-1 p-0"
+                        >
+                          {expandedData[index] ? 'Show Less' : 'Show More'}
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Text type="secondary">Expiry Date:</Text>
+                      <div className="text-sm mt-1">
+                        {new Date(entry.expiryDate * 1000).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         </div>
       </Modal>

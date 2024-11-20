@@ -5,8 +5,9 @@ import { fheApi } from "../../services/fheApi"
 import { createWalletClient, custom, publicActions } from 'viem';
 import { fiscobcos } from '../../Web3Provider';
 import contractConfig from '../../config/contracts';
-import { useAccount } from 'wagmi';
+// import { useAccount } from 'wagmi';
 import { toBytes, stringToHex } from 'viem';
+import { ethers } from 'ethers';
 
 const { Paragraph } = Typography;
 
@@ -29,7 +30,6 @@ export const Registration: React.FC = () => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [showFullPublicKey, setShowFullPublicKey] = useState(false);
   const [showFullPrivateKey, setShowFullPrivateKey] = useState(false);
-  const { address } = useAccount();
 
   useEffect(() => {
     const storedKeys = localStorage.getItem('fheKeys');
@@ -59,33 +59,35 @@ export const Registration: React.FC = () => {
   };
 
   const handleRegister = async () => {
-    if (!keys || !address) {
-      messageApi.error('Please generate keys first!');
+    const storedWallet = localStorage.getItem('wallet');
+    if (!storedWallet || !keys) {
+      messageApi.error('Please generate keys and create wallet first!');
       return;
     }
 
     try {
-      const walletClient = createWalletClient({
-        chain: fiscobcos,
-        transport: custom(window.ethereum)
-      }).extend(publicActions);
+      const wallet = JSON.parse(storedWallet);
+      // 使用正确的 Provider 创建方式
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
 
-      const [account] = await walletClient.getAddresses();
-
-      console.log(keys.publicKey);
+      // 创建合约实例
+      const userRegistry = new ethers.Contract(
+        contractConfig.UserRegistry.address,
+        contractConfig.UserRegistry.abi,
+        signer
+      );
 
       console.log('Registering user...');
-      const hash = await walletClient.writeContract({
-        ...contractConfig.UserRegistry,
-        functionName: 'registerUser',
-        args: [account, keys.publicKey, "serverKey"], // 使用十六进制格式的参数
-        account,
-        gas: BigInt(10000000)
-      });
+      const tx = await userRegistry.registerUser(
+        wallet.address,
+        keys.publicKey,
+        "serverKey"
+      );
 
-      console.log('Transaction hash:', hash);
-      
-      const receipt = await walletClient.getTransactionReceipt({ hash });
+      console.log('Transaction hash:', tx.hash);
+      const receipt = await tx.wait();
       console.log('Transaction confirmed:', receipt);
 
       localStorage.setItem('isRegistered', 'true');

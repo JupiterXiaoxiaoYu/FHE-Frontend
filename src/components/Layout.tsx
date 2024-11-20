@@ -3,7 +3,8 @@ import { Outlet } from 'react-router-dom';
 import { Layout as AntLayout, Menu } from 'antd';
 import { Link } from 'react-router-dom';
 import { HomeOutlined, UserOutlined, BankOutlined, ExperimentOutlined } from '@ant-design/icons';
-import { ConnectKitButton } from "connectkit";
+import { WalletModal } from './wallet/WalletModal';
+// import { ConnectKitButton } from "connectkit";
 
 const { Header, Content } = AntLayout;
 
@@ -60,7 +61,7 @@ export const Layout: React.FC = () => {
           </Menu.Item>
         </Menu>
         <div style={{ marginLeft: 'auto' }}>
-          <ConnectKitButton />
+          <WalletModal />
         </div>
       </Header>
       

@@ -11,7 +11,7 @@ contract TaskManagementContract {
         address bankAddress;
         address userAddress;
         string taskType;
-        bytes encryptedResult;
+        string encryptedResult;
         bytes signature;
         bool isCompleted;
         bool isPublished;
@@ -32,7 +32,7 @@ contract TaskManagementContract {
         address indexed userAddress, 
         string taskType
     );
-    event TaskCompleted(uint256 indexed taskId, bytes result);
+    event TaskCompleted(uint256 indexed taskId, string result);
     event TaskPublished(uint256 indexed taskId, bytes signature);
 
     constructor(address _accessControl) {
@@ -77,7 +77,7 @@ contract TaskManagementContract {
 
     function completeTask(
         uint256 taskId, 
-        bytes memory result
+        string memory result
     ) public noReentrant {
         require(accessControl.isBank(msg.sender), "Caller is not bank");
         

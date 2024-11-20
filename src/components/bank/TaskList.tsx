@@ -3,7 +3,7 @@ import { Card, Table, Tag, Button, message, Modal, List, Typography, Spin } from
 import { CheckCircleOutlined, SyncOutlined, LockOutlined, CalculatorOutlined } from '@ant-design/icons';
 import { ethers } from 'ethers';
 import contractConfig from '../../config/contracts';
-import { DataType } from '../../services/fheApi';
+import { DataType, fheApi } from '../../services/fheApi';
 
 const { Text } = Typography;
 
@@ -40,6 +40,8 @@ export const TaskList: React.FC = () => {
   const [publishLoading, setPublishLoading] = useState(false);
   const [isDataModalVisible, setIsDataModalVisible] = useState(false);
   const [expandedData, setExpandedData] = useState<Record<number, boolean>>({});
+  const [isResultModalVisible, setIsResultModalVisible] = useState(false);
+  const [expandedResult, setExpandedResult] = useState(false);
 
   // 获取银行任务列表
   const fetchTasks = async () => {
@@ -146,15 +148,35 @@ export const TaskList: React.FC = () => {
     if (!currentTask || !userData) return;
     try {
       setComputationLoading(true);
-      // 这里应该是实际的FHE计算
-      // 模拟计算过程
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const result = 'encrypted-result-' + Date.now();
-      setComputationResult(result);
-      messageApi.success('FHE computation completed!');
+      const storedWallet = localStorage.getItem('wallet');
+      if (!storedWallet) {
+        messageApi.error('Please connect your wallet first!');
+        return;
+      }
+      
+      // 从用户数据中提取加密值
+      const encryptedValues = userData.map((entry: any) => entry.encryptedData);
+      
+      // 调用 FHE 计算接口
+      const computationResponse = await fheApi.compute(
+        currentTask.userAddress,
+        currentTask.taskId,
+        taskTypeMap[currentTask.taskType as DataType],
+        encryptedValues
+      );
+
+      console.log('Computation response:', computationResponse);
+      
+      // 保存计算结果
+      setComputationResult(computationResponse.result);
+      messageApi.success('FHE computation completed successfully!');
     } catch (error: any) {
       console.error('Failed to compute result:', error);
-      messageApi.error('Failed to compute result: ' + error.message);
+      if (error.response?.data?.message) {
+        messageApi.error('Computation failed: ' + error.response.data.message);
+      } else {
+        messageApi.error('Failed to compute result: ' + error.message);
+      }
     } finally {
       setComputationLoading(false);
     }
@@ -180,10 +202,13 @@ export const TaskList: React.FC = () => {
         signer
       );
 
+      console.log('computationResult', computationResult);
+
       const tx = await taskManagement.completeTask(
         currentTask.taskId,
-        ethers.utils.toUtf8Bytes(computationResult)
+        computationResult
       );
+
 
       console.log('Transaction sent:', tx.hash);
       const receipt = await tx.wait();
@@ -357,8 +382,17 @@ export const TaskList: React.FC = () => {
                 Request FHE Computation
               </Button>
               {computationResult && (
-                <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-                  <Text type="success">Computation completed successfully!</Text>
+                <div className="mt-2 space-y-2">
+                  <div className="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
+                    <Text type="success">Computation completed successfully!</Text>
+                    <Button 
+                      type="link" 
+                      onClick={() => setIsResultModalVisible(true)}
+                      className="ml-2"
+                    >
+                      View Result
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -435,6 +469,61 @@ export const TaskList: React.FC = () => {
               </Card>
             ))}
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title="Computation Result"
+        open={isResultModalVisible}
+        onCancel={() => {
+          setIsResultModalVisible(false);
+          setExpandedResult(false);
+        }}
+        footer={null}
+        width={500}
+      >
+        <div className="space-y-4">
+          <Card size="small" className="shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center gap-2">
+                <Text strong>Task ID: {currentTask?.taskId} {" "} </Text>
+                <Tag color="green"> Completed</Tag>
+              </div>
+              <div className="grid grid-cols-1 gap-2 mt-2">
+                <div>
+                  <Text type="secondary">Business Type:</Text>
+                  <div className="text-sm mt-1">
+                    {currentTask?.taskType}
+                  </div>
+                </div>
+                <div>
+                  <Text type="secondary">Encrypted Result:</Text>
+                  <div className="font-mono bg-gray-50 p-2 rounded text-sm mt-1">
+                    <div className="break-all">
+                      {expandedResult 
+                        ? computationResult
+                        : computationResult?.substring(0, 50) + '...'
+                      }
+                    </div>
+                    <Button 
+                      type="link" 
+                      onClick={() => setExpandedResult(!expandedResult)}
+                      size="small"
+                      className="mt-1 p-0"
+                    >
+                      {expandedResult ? 'Show Less' : 'Show More'}
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Text type="secondary">Computation Time:</Text>
+                  <div className="text-sm mt-1">
+                    {new Date().toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
       </Modal>
     </>

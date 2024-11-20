@@ -10,6 +10,8 @@ import {
 } from '@ant-design/icons';
 import { fheApi } from '../../services/fheApi';
 import { DataType } from '../../services/fheApi';
+import * as ethers from 'ethers';
+import { contractConfig } from '../../config/contracts';
 
 const { Text, Paragraph } = Typography;
 
@@ -125,6 +127,18 @@ export const DataEncryption: React.FC = () => {
   // 上传数据到链上
   const handleUploadToChain = async (dataId: string) => {
     try {
+      const dataToUpload = encryptedDataList.find(item => item.id === dataId);
+      if (!dataToUpload) {
+        messageApi.error('Data not found!');
+        return;
+      }
+
+      const storedKeys = localStorage.getItem('wallet');
+      if (!storedKeys) {
+        messageApi.error('Bank wallet not found!');
+        return;
+      }
+
       // 设置上传中状态
       setEncryptedDataList(prev => 
         prev.map(item => 
@@ -132,19 +146,67 @@ export const DataEncryption: React.FC = () => {
         )
       );
 
-      // 模拟上链操作
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // 更新状态为已上链
-      setEncryptedDataList(prev => 
-        prev.map(item => 
-          item.id === dataId ? { ...item, onChain: true, uploading: false } : item
-        )
+      const keys = JSON.parse(storedKeys);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(keys.privateKey, provider);
+      
+      const dataStorage = new ethers.Contract(
+        contractConfig.DataStorage.address,
+        contractConfig.DataStorage.abi,
+        signer
       );
 
-      messageApi.success('Data uploaded to blockchain successfully!');
-    } catch (error) {
-      messageApi.error('Failed to upload data to blockchain!');
+      // 获取当前区块时间戳
+      const currentBlock = await provider.getBlock('latest');
+      const currentBlockTimestamp = currentBlock.timestamp;
+      
+      // 设置过期时间为当前区块时间戳 + 30天（以秒为单位）
+      const expiryDate = currentBlockTimestamp + (30 * 24 * 60 * 60);
+
+      console.log('Current block timestamp:', currentBlockTimestamp);
+      console.log('Expiry date:', expiryDate);
+
+      // 调用合约存储数据
+      const tx = await dataStorage.storeUserData(
+        dataToUpload.userPublicKey,  // 用户地址
+        dataToUpload.dataType,       // 数据类型
+        expiryDate,                  // 过期时间（以秒为单位）
+        dataToUpload.encryptedValue  // 加密数据
+      );
+
+      console.log('Transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+
+      const dataStoredEvent = receipt.events?.find(
+        (event: any) => event.event === 'DataStored'
+      );
+
+      if (dataStoredEvent) {
+        setEncryptedDataList(prev => 
+          prev.map(item => 
+            item.id === dataId ? { ...item, onChain: true, uploading: false } : item
+          )
+        );
+        messageApi.success('Data uploaded to blockchain successfully!');
+      } else {
+        throw new Error('Data storage event not found in transaction receipt');
+      }
+
+    } catch (error: any) {
+      console.error('Failed to upload data:', error);
+      
+      // 错误处理
+      if (error.message.includes('Invalid expiry date')) {
+        messageApi.error('Invalid expiry date!');
+      } else if (error.message.includes('Only bank can store data')) {
+        messageApi.error('Only registered banks can store data!');
+      } else if (error.message.includes('Invalid user')) {
+        messageApi.error('User is not registered!');
+      } else {
+        messageApi.error('Failed to upload data to blockchain!');
+      }
+
       // 重置上传中状态
       setEncryptedDataList(prev => 
         prev.map(item => 

@@ -5,11 +5,11 @@ import "./AccessControl.sol";
 
 contract UserRegistryContract {
     AccessControl public accessControl;
-    
+
     struct User {
         bytes publicKey;
-        bytes fhePublicKey;
-        bytes serverKey;
+        string fhePublicKey;
+        string serverKey;
         uint256 id;
         bool isActive;
     }
@@ -26,22 +26,25 @@ contract UserRegistryContract {
 
     function registerUser(
         bytes memory publicKey,
-        bytes memory fhePublicKey,
-        bytes memory serverKey
+        string memory fhePublicKey,
+        string memory serverKey
     ) public {
         require(!users[msg.sender].isActive, "User already registered");
-        
-        uint256 userId = nextUserId++;
-        users[msg.sender] = User(
-            publicKey,
-            fhePublicKey,
-            serverKey,
-            userId,
-            true
-        );
-        
-        accessControl.registerUser(msg.sender);
-        emit UserRegistered(msg.sender, userId);
+        if (!users[msg.sender].isActive) {
+            users[msg.sender].isActive = true;
+        } else {
+            uint256 userId = nextUserId++;
+            users[msg.sender] = User(
+                publicKey,
+                fhePublicKey,
+                serverKey,
+                userId,
+                true
+            );
+
+            accessControl.registerUser(msg.sender);
+            emit UserRegistered(msg.sender, userId);
+        }
     }
 
     function deactivateUser(address userAddress) public {
@@ -50,7 +53,7 @@ contract UserRegistryContract {
             "Not authorized"
         );
         require(users[userAddress].isActive, "User not active");
-        
+
         users[userAddress].isActive = false;
         emit UserDeactivated(userAddress, users[userAddress].id);
     }

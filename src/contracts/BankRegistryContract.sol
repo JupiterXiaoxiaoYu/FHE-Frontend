@@ -5,7 +5,7 @@ import "./AccessControl.sol";
 
 contract BankRegistryContract {
     AccessControl public accessControl;
-    
+
     struct Bank {
         bytes publicKey;
         uint256 id;
@@ -24,22 +24,24 @@ contract BankRegistryContract {
 
     function registerBank(bytes memory publicKey) public {
         require(!banks[msg.sender].isActive, "Bank already registered");
-        
-        uint256 bankId = nextBankId++;
-        banks[msg.sender] = Bank(
-            publicKey,
-            bankId,
-            true
-        );
-        
-        accessControl.addBank(msg.sender);
-        emit BankRegistered(msg.sender, bankId);
+        if (!banks[msg.sender].isActive) {
+            banks[msg.sender].isActive = true;
+        } else {
+            uint256 bankId = nextBankId++;
+            banks[msg.sender] = Bank(publicKey, bankId, true);
+
+            accessControl.addBank(msg.sender);
+            emit BankRegistered(msg.sender, bankId);
+        }
     }
 
     function deactivateBank(address bankAddress) public {
-        require(accessControl.isAdmin(msg.sender), "Only admin can deactivate bank");
+        require(
+            accessControl.isAdmin(msg.sender) || msg.sender == bankAddress,
+            "Only admin or bank itself can deactivate bank"
+        );
         require(banks[bankAddress].isActive, "Bank not active");
-        
+
         banks[bankAddress].isActive = false;
         accessControl.removeBank(bankAddress);
         emit BankDeactivated(bankAddress, banks[bankAddress].id);

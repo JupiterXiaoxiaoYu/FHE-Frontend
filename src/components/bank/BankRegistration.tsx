@@ -7,6 +7,8 @@ import {
   CopyOutlined,
   LogoutOutlined 
 } from '@ant-design/icons';
+import { ethers } from 'ethers';
+import contractConfig from '../../config/contracts';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -14,6 +16,8 @@ interface BankInfo {
   weId: string;
   publicKey: string;
   registrationTime?: number;
+  id?: number;
+  isActive?: boolean;
 }
 
 export const BankRegistration: React.FC = () => {
@@ -30,11 +34,43 @@ export const BankRegistration: React.FC = () => {
 
   const handleRegister = async (values: { weId: string }) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const storedKeys = localStorage.getItem('wallet');
+      if (!storedKeys) {
+        messageApi.error('Please generate bank keys first!');
+        return;
+      }
+  
+      const keys = JSON.parse(storedKeys);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(keys.privateKey, provider);
+      
+      const bankRegistry = new ethers.Contract(
+        contractConfig.BankRegistry.address,
+        contractConfig.BankRegistry.abi,
+        signer
+      );
+
+      console.log('Bank address:', keys.address);
+  
+      const tx = await bankRegistry.registerBank(keys.address);
+      console.log('Transaction sent:', tx.hash);
+      
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+  
+      const registerEvent = receipt.events?.find(
+        (event: any) => event.event === 'BankRegistered'
+      );
+      const bankId = registerEvent?.args?.bankId.toNumber();
+  
+      const bankData = await bankRegistry.getBank(keys.address);
+  
       const newBankInfo = {
         weId: values.weId,
-        publicKey: 'mock-bank-public-key-' + Math.random().toString(36).substring(7),
-        registrationTime: Date.now()
+        publicKey: keys.address,
+        registrationTime: Date.now(),
+        id: bankId,
+        isActive: bankData.isActive
       };
       
       localStorage.setItem('bankInfo', JSON.stringify(newBankInfo));
@@ -47,10 +83,33 @@ export const BankRegistration: React.FC = () => {
     }
   };
 
-  const handleRevoke = () => {
-    localStorage.removeItem('bankInfo');
-    setBankInfo(null);
-    messageApi.success('Bank registration revoked successfully!');
+  const handleRevoke = async () => {
+    try {
+      const storedKeys = localStorage.getItem('wallet');
+      if (!storedKeys) {
+        messageApi.error('Please generate bank keys first!');
+        return;
+      }
+      const keys = JSON.parse(storedKeys);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(keys.privateKey, provider);
+      
+      const bankRegistry = new ethers.Contract(
+        contractConfig.BankRegistry.address,
+        contractConfig.BankRegistry.abi,
+        signer
+      );
+
+      // const tx = await bankRegistry.deactivateBank(keys.address);
+      // await tx.wait();
+
+      localStorage.removeItem('bankInfo');
+      setBankInfo(null);
+      messageApi.success('Bank registration revoked successfully!');
+    } catch (error) {
+      messageApi.error('Failed to revoke registration!');
+      console.error('Revoke failed:', error);
+    }
   };
 
   return (

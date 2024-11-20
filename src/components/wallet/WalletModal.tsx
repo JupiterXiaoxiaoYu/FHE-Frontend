@@ -33,6 +33,7 @@ export const WalletModal: React.FC = () => {
     };
     setWallet(walletInfo);
     localStorage.setItem('wallet', JSON.stringify(walletInfo));
+    window.dispatchEvent(new Event('walletChanged'));
     messageApi.success('New wallet generated successfully!');
   };
 
@@ -50,6 +51,7 @@ export const WalletModal: React.FC = () => {
       
       setWallet(walletInfo);
       localStorage.setItem('wallet', JSON.stringify(walletInfo));
+      window.dispatchEvent(new Event('walletChanged'));
       setShowImport(false);
       setImportPrivateKey('');
       messageApi.success('Wallet imported successfully!');
@@ -63,6 +65,7 @@ export const WalletModal: React.FC = () => {
     localStorage.removeItem('wallet');
     setWallet(null);
     setShowPrivateKey(false);
+    window.dispatchEvent(new Event('walletChanged'));
     messageApi.success('Wallet revoked successfully!');
   };
 

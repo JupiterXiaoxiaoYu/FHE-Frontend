@@ -30,20 +30,37 @@ export const Registration: React.FC = () => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [showFullPublicKey, setShowFullPublicKey] = useState(false);
   const [showFullPrivateKey, setShowFullPrivateKey] = useState(false);
+  const [wallet, setWallet] = useState<{ address: string; privateKey: string } | null>(null);
+  const [isContractRegistered, setIsContractRegistered] = useState(false);
 
   useEffect(() => {
-    const storedKeys = localStorage.getItem('fheKeys');
-    if (storedKeys) {
-      setKeys(JSON.parse(storedKeys));
+    // Load wallet first
+    const storedWallet = localStorage.getItem('wallet');
+    if (storedWallet) {
+      setWallet(JSON.parse(storedWallet));
+      // Only load FHE keys if wallet exists
+      const storedKeys = localStorage.getItem('fheKeys');
+      if (storedKeys) {
+        setKeys(JSON.parse(storedKeys));
+      }
+    } else {
+      // If no wallet, ensure FHE keys are cleared
+      localStorage.removeItem('fheKeys');
+      setKeys(null);
     }
-    // 模拟从合约获取注册状态
+    
     const registrationStatus = localStorage.getItem('isRegistered') === 'true';
     setIsRegistered(registrationStatus);
   }, []);
 
   const handleGenerateKeys = async () => {
+    if (!wallet) {
+      messageApi.error('Please create a wallet first!');
+      return;
+    }
+
     try {
-      const keys = await fheApi.generateKeys();
+      const keys = await fheApi.generateKeys(wallet.address);
       const newKeys = {
         publicKey: keys.publicKey,
         clientKey: keys.clientKey
@@ -57,6 +74,26 @@ export const Registration: React.FC = () => {
       console.error('Key generation failed:', error);
     }
   };
+
+  // Add wallet listener
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'wallet') {
+        if (!e.newValue) {
+          // Wallet was removed, clear FHE keys
+          localStorage.removeItem('fheKeys');
+          setKeys(null);
+          setWallet(null);
+          setIsRegistered(false);
+        } else {
+          setWallet(JSON.parse(e.newValue));
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const handleRegister = async () => {
     const storedWallet = localStorage.getItem('wallet');
@@ -108,6 +145,63 @@ export const Registration: React.FC = () => {
     messageApi.success('Keys and registration revoked successfully!');
   };
 
+  // Add this event handler
+  const handleWalletChange = () => {
+    const storedWallet = localStorage.getItem('wallet');
+    if (storedWallet) {
+      setWallet(JSON.parse(storedWallet));
+    } else {
+      // If wallet is removed, clear FHE keys
+      localStorage.removeItem('fheKeys');
+      setKeys(null);
+      setWallet(null);
+      setIsRegistered(false);
+    }
+  };
+
+  // Add a custom event listener for wallet changes
+  useEffect(() => {
+    window.addEventListener('walletChanged', handleWalletChange);
+    return () => window.removeEventListener('walletChanged', handleWalletChange);
+  }, []);
+
+  const checkContractRegistration = async () => {
+    if (!wallet) return;
+    
+    try {
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const userRegistry = new ethers.Contract(
+        contractConfig.UserRegistry.address,
+        contractConfig.UserRegistry.abi,
+        provider
+      );
+
+      const user = await userRegistry.users(wallet.address);
+      setIsContractRegistered(user.isActive);
+      console.log(user.isActive);
+    } catch (error) {
+      console.error('Failed to check registration:', error);
+    }
+  };
+
+  // 修改 useEffect 来包含合约检查
+  useEffect(() => {
+    const storedWallet = localStorage.getItem('wallet');
+    if (storedWallet) {
+      const parsedWallet = JSON.parse(storedWallet);
+      setWallet(parsedWallet);
+      checkContractRegistration();
+      
+      const storedKeys = localStorage.getItem('fheKeys');
+      if (storedKeys) {
+        setKeys(JSON.parse(storedKeys));
+      }
+    } else {
+      localStorage.removeItem('fheKeys');
+      setKeys(null);
+    }
+  }, [isRegistered, isContractRegistered]);
+
   return (
     <Card title="Client Registration">
       {contextHolder}
@@ -119,7 +213,7 @@ export const Registration: React.FC = () => {
               icon={<KeyOutlined />}
               onClick={handleGenerateKeys}
               size="large"
-              disabled={keys !== null}
+              disabled={keys !== null || !wallet}
               block
             >
               Generate FHE Keys
@@ -130,7 +224,7 @@ export const Registration: React.FC = () => {
               icon={<UserAddOutlined />}
               onClick={handleRegister}
               size="large"
-              disabled={!keys || isRegistered}
+              disabled={!keys || isContractRegistered}
               block
             >
               Register Client

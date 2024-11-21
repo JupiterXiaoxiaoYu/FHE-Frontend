@@ -8,7 +8,8 @@ import {
   UnlockOutlined, 
   CloudUploadOutlined,
   PlusOutlined,
-  BankOutlined 
+  BankOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 import { Task } from '../../types';
 import { ethers } from 'ethers';
@@ -16,6 +17,7 @@ import contractConfig from '../../config/contracts';
 import { DataType } from '../../services/fheApi';
 import {fheApi} from '../../services/fheApi';
 import  messageApi from '../../App';
+import jsPDF from 'jspdf';
 
 const { Paragraph, Title, Text } = Typography;
 const { Option } = Select;
@@ -401,6 +403,78 @@ export const TaskResults: React.FC = () => {
     },
   ];
 
+  const generateCertificate = () => {
+    try {
+      if (!currentTask) return;
+
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxLineWidth = pageWidth - 2 * margin;
+      
+      // 添加标题
+      doc.setFontSize(20);
+      doc.text('Business Qualification Certificate', pageWidth/2, 20, { align: 'center' });
+      
+      // 添加分隔线
+      doc.setLineWidth(0.5);
+      doc.line(margin, 25, pageWidth-margin, 25);
+      
+      // 设置正文字体大小
+      doc.setFontSize(12);
+      
+      // 准备内容（除签名外）
+      const basicContent = [
+        `Certificate ID: ${currentTask.id}`,
+        `Bank Address: ${currentTask.bankId}`,
+        `Business Type: ${currentTask.businessType}`,
+        `Qualification Result: ${currentTask.decryptedResult}`,
+        `Issue Date: ${new Date().toLocaleDateString()}`
+      ];
+
+      // 先添加基本内容
+      let yPosition = 40;
+      basicContent.forEach((text) => {
+        doc.text(text, margin, yPosition);
+        yPosition += 10;
+      });
+
+      // 处理签名的自动换行
+      if (currentTask.signature) {
+        doc.text('Verification Signature:', margin, yPosition);
+        yPosition += 7; // 稍微缩小签名行间距
+
+        // 将签名分成多行
+        const signatureLines = doc.splitTextToSize(
+          currentTask.signature,
+          maxLineWidth
+        );
+        
+        // 添加签名文本
+        signatureLines.forEach((line: string) => {
+          doc.text(line, margin, yPosition);
+          yPosition += 7; // 签名行使用更小的行间距
+        });
+      }
+
+      // 添加页脚
+      doc.setFontSize(10);
+      doc.text(
+        'This certificate is digitally signed and verified on blockchain.',
+        pageWidth/2,
+        250,
+        { align: 'center' }
+      );
+      
+      // 保存PDF
+      doc.save(`business-certificate-${currentTask.id}.pdf`);
+      messageApi.success('Certificate generated successfully!');
+    } catch (error) {
+      console.error('Failed to generate certificate:', error);
+      messageApi.error('Failed to generate certificate');
+    }
+  };
+
   return (
     <>
       {contextHolder}
@@ -659,7 +733,18 @@ export const TaskResults: React.FC = () => {
           setIsViewModalVisible(false);
           setCurrentTask(null);
         }}
-        footer={null}
+        footer={
+          <div className="flex justify-end">
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={generateCertificate}
+              className="rounded-lg"
+            >
+              Generate Certificate
+            </Button>
+          </div>
+        }
         width={700}
         className="custom-modal"
       >

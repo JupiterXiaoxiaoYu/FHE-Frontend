@@ -21,6 +21,18 @@ export const Layout: React.FC = () => {
           alignItems: 'center'
         }}
       >
+        <div className="flex items-center mr-8">
+          <Link to="/">
+            <img 
+              src="/logo_nobg.png" 
+              alt="Logo" 
+              style={{ 
+                height: '40px',
+                width: 'auto'
+              }} 
+            />
+          </Link>
+        </div>
         <Menu 
           mode="horizontal" 
           className="border-0 flex-1"

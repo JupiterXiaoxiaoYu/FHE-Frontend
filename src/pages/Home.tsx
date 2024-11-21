@@ -15,7 +15,7 @@ export const Home: React.FC = () => {
             Welcome to CipherBridge
           </Title>
           <Paragraph className="text-xl text-gray-600 mb-12">
-            A secure and innovative banking system powered by Fully Homomorphic Encryption technology
+            A secure and innovative multi-party cipher computing system powered by Fully Homomorphic Encryption technology
           </Paragraph>
         </div>
 

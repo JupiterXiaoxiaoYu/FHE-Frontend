@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Tag, message, Modal, Space, Typography, Form, Input, Select } from 'antd';
+import { Card, Table, Button, Tag, message, Modal, Space, Typography, Form, Input, Select, Radio, Badge } from 'antd';
 import { 
   CheckCircleOutlined, 
   SyncOutlined, 
@@ -52,6 +52,10 @@ export const TaskResults: React.FC = () => {
   const [taskResult, setTaskResult] = useState<TaskResult | null>(null);
   const [isDecrypted, setIsDecrypted] = useState(false);
   const [tasks, setTasks] = useState<Task[]>();
+  const [activeTab, setActiveTab] = useState<'pending' | 'completed' | 'published'>('pending');
+  const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
+  const [publishedTasks, setPublishedTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     refreshTasks();
@@ -180,21 +184,28 @@ export const TaskResults: React.FC = () => {
         signer
       );
 
-      const pendingTasks = await taskManagement.getBankPendingTasks(wallet.address);
+      const [pending, completed, published] = await Promise.all([
+        taskManagement.getUserPendingTasks(wallet.address),
+        taskManagement.getUserCompletedUnpublishedTasks(wallet.address),
+        taskManagement.getUserCompletedAndPublishedTasks(wallet.address)
+      ]);
 
-      console.log('Pending tasks:', pendingTasks);
-      
-      const formattedTasks = pendingTasks.map((task: any) => ({
+      const formatTasks = (tasks: any[]): Task[] => tasks.map((task: any) => ({
         id: task.taskId.toString(),
         bankId: task.bankAddress,
         businessType: task.taskType,
-        status: task.isCompleted ? 'completed' : 'pending',
-        createdAt: new Date(task.createdAt.toNumber() * 1000)
+        status: task.isCompleted 
+          ? (task.isPublished ? 'published' : 'completed') 
+          : 'pending',
+        createdAt: parseInt(task.createdAt._hex, 16)
+        // Ensure all required fields are included and correctly typed
       }));
 
-      setTasks(formattedTasks);
+      setPendingTasks(formatTasks(pending));
+      setCompletedTasks(formatTasks(completed));
+      setPublishedTasks(formatTasks(published));
     } catch (error) {
-      console.error('Failed to refresh tasks:', error);
+      console.error('Failed to fetch tasks:', error);
       messageApi.error('Failed to load tasks');
     }
   };
@@ -232,14 +243,35 @@ export const TaskResults: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: (record: Task) => (
-        <Button
-          type="primary"
-          icon={<PlayCircleOutlined />}
-          onClick={() => handleProcessTask(record)}
-        >
-          Process Task
-        </Button>
+      render: (_, record: Task) => (
+        <Space>
+          {record.status === 'pending' && (
+            <Button
+              type="default"
+              icon={<SyncOutlined spin />}
+            >
+              Waiting for Bank
+            </Button>
+          )}
+          {record.status === 'completed' && (
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              onClick={() => handleProcessTask(record)}
+            >
+              Process Result
+            </Button>
+          )}
+          {record.status === 'published' && (
+            <Button
+              type="link"
+              icon={<CheckCircleOutlined />}
+              onClick={() => handleProcessTask(record)}
+            >
+              View Result
+            </Button>
+          )}
+        </Space>
       ),
     },
   ];
@@ -260,13 +292,49 @@ export const TaskResults: React.FC = () => {
           </Button>
         }
       >
-        <Table
-          dataSource={tasks}
-          columns={columns}
-          rowKey="id"
-          pagination={false}
-          className="custom-table"
-        />
+        <div className="flex flex-col space-y-6">
+          <div className="flex justify-center">
+            <Radio.Group 
+              value={activeTab} 
+              onChange={e => setActiveTab(e.target.value)}
+              size="large"
+              className="shadow-sm"
+            >
+              <Radio.Button value="pending">
+                <div className="px-2 py-1">
+                  <span>Pending Tasks {" "}</span>
+                  <Badge count={pendingTasks.length} className="ml-2" />
+                </div>
+              </Radio.Button>
+              <Radio.Button value="completed">
+                <div className="px-2 py-1">
+                  <span>Completed Unpublished {" "}</span>
+                  <Badge count={completedTasks.length} className="ml-2" />
+                </div>
+              </Radio.Button>
+              <Radio.Button value="published">
+                <div className="px-2 py-1">
+                  <span>Published {" "}</span>
+                  <Badge count={publishedTasks.length} className="ml-2" />
+                </div>
+              </Radio.Button>
+            </Radio.Group>
+          </div>
+
+          <Table
+            dataSource={
+              activeTab === 'pending' 
+                ? pendingTasks 
+                : activeTab === 'completed' 
+                  ? completedTasks 
+                  : publishedTasks
+            }
+            columns={columns}
+            rowKey="id"
+            pagination={false}
+            className="custom-table"
+          />
+        </div>
       </Card>
 
       <Modal
@@ -392,6 +460,7 @@ export const TaskResults: React.FC = () => {
               type="primary"
               htmlType="submit"
               className="rounded-lg"
+              onClick={() => setIsNewTaskModalVisible(false)}
             >
               Create Business Task
             </Button>

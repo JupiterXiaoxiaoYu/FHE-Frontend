@@ -184,4 +184,156 @@ contract TaskManagementContract {
         
         return pendingTasks;
     }
+
+    // 获取银行的已完成但未发布的任务
+    function getBankCompletedUnpublishedTasks(
+        address bankAddress
+    ) public view returns (Task[] memory) {
+        require(
+            msg.sender == bankAddress || 
+            accessControl.isAdmin(msg.sender),
+            "Not authorized"
+        );
+        require(accessControl.isBank(bankAddress), "Not a bank address");
+        
+        uint256[] memory bankTaskIds = bankTasks[bankAddress];
+        uint256 count = 0;
+        
+        // 计算符合条件的任务数量
+        for (uint256 i = 0; i < bankTaskIds.length; i++) {
+            Task memory task = tasks[bankTaskIds[i]];
+            if (task.isCompleted && !task.isPublished) {
+                count++;
+            }
+        }
+        
+        // 创建结果数组
+        Task[] memory resultTasks = new Task[](count);
+        uint256 currentIndex = 0;
+        
+        // 填充结果数组
+        for (uint256 i = 0; i < bankTaskIds.length; i++) {
+            Task memory task = tasks[bankTaskIds[i]];
+            if (task.isCompleted && !task.isPublished) {
+                resultTasks[currentIndex] = task;
+                currentIndex++;
+            }
+        }
+        
+        return resultTasks;
+    }
+
+    // 获取银行的已完成且已发布的任务
+    function getBankCompletedAndPublishedTasks(
+        address bankAddress
+    ) public view returns (Task[] memory) {
+        require(
+            msg.sender == bankAddress || 
+            accessControl.isAdmin(msg.sender),
+            "Not authorized"
+        );
+        require(accessControl.isBank(bankAddress), "Not a bank address");
+        
+        uint256[] memory bankTaskIds = bankTasks[bankAddress];
+        uint256 count = 0;
+        
+        // 计算符合条件的任务数量
+        for (uint256 i = 0; i < bankTaskIds.length; i++) {
+            Task memory task = tasks[bankTaskIds[i]];
+            if (task.isCompleted && task.isPublished) {
+                count++;
+            }
+        }
+        
+        // 创建结果数组
+        Task[] memory resultTasks = new Task[](count);
+        uint256 currentIndex = 0;
+        
+        // 填充结果数组
+        for (uint256 i = 0; i < bankTaskIds.length; i++) {
+            Task memory task = tasks[bankTaskIds[i]];
+            if (task.isCompleted && task.isPublished) {
+                resultTasks[currentIndex] = task;
+                currentIndex++;
+            }
+        }
+        
+        return resultTasks;
+    }
+
+    // 获取用户的已完成但未发布的任务
+    function getUserCompletedUnpublishedTasks(
+        address userAddress
+    ) public view returns (Task[] memory) {
+        require(
+            msg.sender == userAddress || 
+            accessControl.isAdmin(msg.sender),
+            "Not authorized"
+        );
+        require(accessControl.isRegisteredUser(userAddress), "Not a registered user");
+        
+        uint256[] memory userTaskIds = userTasks[userAddress];
+        uint256 count = 0;
+        
+        // 计算符合条件的任务数量
+        for (uint256 i = 0; i < userTaskIds.length; i++) {
+            Task memory task = tasks[userTaskIds[i]];
+            if (task.isCompleted && !task.isPublished) {
+                count++;
+            }
+        }
+        
+        // 创建结果数组
+        Task[] memory resultTasks = new Task[](count);
+        uint256 currentIndex = 0;
+        
+        // 填充结果数组
+        for (uint256 i = 0; i < userTaskIds.length; i++) {
+            Task memory task = tasks[userTaskIds[i]];
+            if (task.isCompleted && !task.isPublished) {
+                resultTasks[currentIndex] = task;
+                currentIndex++;
+            }
+        }
+        
+        return resultTasks;
+    }
+
+    // 获取用户的已完成且已发布的任务
+    function getUserCompletedAndPublishedTasks(
+        address userAddress
+    ) public view returns (Task[] memory) {
+        require(
+            msg.sender == userAddress || 
+            accessControl.isAdmin(msg.sender),
+            "Not authorized"
+        );
+        require(accessControl.isRegisteredUser(userAddress), "Not a registered user");
+        
+        uint256[] memory userTaskIds = userTasks[userAddress];
+        uint256 count = 0;
+        
+        // 计算符合条件的任务数量
+        for (uint256 i = 0; i < userTaskIds.length; i++) {
+            Task memory task = tasks[userTaskIds[i]];
+            if (task.isCompleted && task.isPublished) {
+                count++;
+            }
+        }
+        
+        // 创建结果数组
+        Task[] memory resultTasks = new Task[](count);
+        uint256 currentIndex = 0;
+        
+        // 填充结果数组
+        for (uint256 i = 0; i < userTaskIds.length; i++) {
+            Task memory task = tasks[userTaskIds[i]];
+            if (task.isCompleted && task.isPublished) {
+                resultTasks[currentIndex] = task;
+                currentIndex++;
+            }
+        }
+        
+        return resultTasks;
+    }
 }

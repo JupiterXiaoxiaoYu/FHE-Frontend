@@ -2,8 +2,9 @@ export interface Task {
   id: string;
   bankId: string;
   businessType: string;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'published';
   result?: string;
+  createdAt: number;
 }
 
 export interface Bank {

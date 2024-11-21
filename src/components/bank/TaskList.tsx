@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, message, Modal, List, Typography, Spin } from 'antd';
+import { Card, Table, Tag, Button, message, Modal, List, Typography, Spin, Radio, Badge, Space } from 'antd';
 import { CheckCircleOutlined, SyncOutlined, LockOutlined, CalculatorOutlined } from '@ant-design/icons';
 import { ethers } from 'ethers';
 import contractConfig from '../../config/contracts';
@@ -42,6 +42,10 @@ export const TaskList: React.FC = () => {
   const [expandedData, setExpandedData] = useState<Record<number, boolean>>({});
   const [isResultModalVisible, setIsResultModalVisible] = useState(false);
   const [expandedResult, setExpandedResult] = useState(false);
+  const [activeTab, setActiveTab] = useState<'pending' | 'completed' | 'published'>('pending');
+  const [pendingTasks, setPendingTasks] = useState<ContractTask[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<ContractTask[]>([]);
+  const [publishedTasks, setPublishedTasks] = useState<ContractTask[]>([]);
 
   // 获取银行任务列表
   const fetchTasks = async () => {
@@ -62,30 +66,29 @@ export const TaskList: React.FC = () => {
         signer
       );
 
-      // 获取银行的待处理任务
-      const pendingTasks = await taskManagement.getBankPendingTasks(wallet.address);
+      // 获取三种类型的任务
+      const [pending, completed, published] = await Promise.all([
+        taskManagement.getBankPendingTasks(wallet.address),
+        taskManagement.getBankCompletedUnpublishedTasks(wallet.address),
+        taskManagement.getBankCompletedAndPublishedTasks(wallet.address)
+      ]);
 
-      console.log('pendingTasks', pendingTasks);
-      
-      // 转换任务数据格式
-      const formattedTasks = pendingTasks.map((task: any) => {
-        // 将 BigNumber 转换为数字
-        const timestamp = parseInt(task.createdAt._hex, 16);  // 将 16 进制转换为 10 进制
-        
-        return {
-          taskId: task.taskId.toString(),
-          bankAddress: task.bankAddress,
-          userAddress: task.userAddress,
-          taskType: task.taskType,
-          encryptedResult: task.encryptedResult,
-          signature: task.signature,
-          isCompleted: task.isCompleted,
-          isPublished: task.isPublished,
-          createdAt: timestamp  // 将秒转换为毫秒
-        };
-      });
+      // 转换任务数据格式的函数
+      const formatTasks = (tasks: any[]) => tasks.map((task: any) => ({
+        taskId: task.taskId.toString(),
+        bankAddress: task.bankAddress,
+        userAddress: task.userAddress,
+        taskType: task.taskType,
+        encryptedResult: task.encryptedResult,
+        signature: task.signature,
+        isCompleted: task.isCompleted,
+        isPublished: task.isPublished,
+        createdAt: parseInt(task.createdAt._hex, 16)
+      }));
 
-      setTasks(formattedTasks);
+      setPendingTasks(formatTasks(pending));
+      setCompletedTasks(formatTasks(completed));
+      setPublishedTasks(formatTasks(published));
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
       messageApi.error('Failed to load tasks');
@@ -268,56 +271,113 @@ export const TaskList: React.FC = () => {
     {
       title: 'Status',
       key: 'status',
-      render: (record: ContractTask) => (
-        <Tag
-          icon={record.isCompleted ? <CheckCircleOutlined /> : <SyncOutlined spin />}
-          color={record.isCompleted ? 'success' : 'processing'}
-        >
-          {record.isCompleted ? 'COMPLETED' : 'PENDING'}
+      render: (_, record: ContractTask) => (
+        <Tag color={
+          !record.isCompleted 
+            ? 'blue' 
+            : record.isPublished 
+              ? 'green' 
+              : 'orange'
+        }>
+          {!record.isCompleted 
+            ? 'Pending' 
+            : record.isPublished 
+              ? 'Published' 
+              : 'Completed'}
         </Tag>
-      ),
+      )
     },
     {
-      title: 'Actions',
-      key: 'actions',
-      render: (record: ContractTask) => (
-        !record.isCompleted && (
-          <Button
-            type="primary"
-            icon={<LockOutlined />}
-            onClick={() => handleProcessTask(record)}
-            loading={processingTaskId === record.taskId}
-          >
-            Process Task
-          </Button>
-        )
-      ),
-    },
+      title: 'Action',
+      key: 'action',
+      render: (_, record: ContractTask) => (
+        <Space>
+          {!record.isCompleted && (
+            <Button 
+              type="primary"
+              onClick={() => handleProcessTask(record)}
+            >
+              Process
+            </Button>
+          )}
+          {record.isCompleted && !record.isPublished && (
+            <Button type="default" disabled>
+              Waiting for User
+            </Button>
+          )}
+          {record.isPublished && (
+            <Button 
+              type="link" 
+              onClick={() => {
+                setCurrentTask(record);
+                setComputationResult(record.encryptedResult);
+                setIsResultModalVisible(true);
+              }}
+            >
+              View Result
+            </Button>
+          )}
+        </Space>
+      )
+    }
   ];
 
   return (
     <>
       {contextHolder}
-      <Card 
-        title="Task List"
-        extra={
-          <Button type="primary" onClick={fetchTasks} loading={loading}>
-            Refresh
-          </Button>
-        }
-      >
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <Spin size="large" />
+      <Card title="Bank Tasks" className="w-full">
+        <div className="flex flex-col space-y-6">
+          {/* Tabs Container */}
+          <div className="flex justify-center">
+            <Radio.Group 
+              value={activeTab} 
+              onChange={e => setActiveTab(e.target.value)}
+              size="large"
+              className="shadow-sm"
+            >
+              <Radio.Button value="pending">
+                <div className="px-2 py-1">
+                  <span>Pending Tasks</span>
+                  <Badge count={pendingTasks.length} className="ml-2" />
+                </div>
+              </Radio.Button>
+              <Radio.Button value="completed">
+                <div className="px-2 py-1">
+                  <span>Completed Unpublished</span>
+                  <Badge count={completedTasks.length} className="ml-2" />
+                </div>
+              </Radio.Button>
+              <Radio.Button value="published">
+                <div className="px-2 py-1">
+                  <span>Published</span>
+                  <Badge count={publishedTasks.length} className="ml-2" />
+                </div>
+              </Radio.Button>
+            </Radio.Group>
           </div>
-        ) : (
-          <Table
-            dataSource={tasks}
-            columns={columns}
-            rowKey="taskId"
-            pagination={false}
-          />
-        )}
+
+          {/* Table Container */}
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <Spin size="large" />
+            </div>
+          ) : (
+            <div className="mt-4">
+              <Table
+                dataSource={
+                  activeTab === 'pending' 
+                    ? pendingTasks 
+                    : activeTab === 'completed' 
+                      ? completedTasks 
+                      : publishedTasks
+                }
+                columns={columns}
+                rowKey="taskId"
+                pagination={false}
+              />
+            </div>
+          )}
+        </div>
       </Card>
 
       <Modal

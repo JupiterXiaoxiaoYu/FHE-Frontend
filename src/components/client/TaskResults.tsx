@@ -13,6 +13,9 @@ import {
 import { Task } from '../../types';
 import { ethers } from 'ethers';
 import contractConfig from '../../config/contracts';
+import { DataType } from '../../services/fheApi';
+import {fheApi} from '../../services/fheApi';
+import  messageApi from '../../App';
 
 const { Paragraph, Title, Text } = Typography;
 const { Option } = Select;
@@ -26,6 +29,7 @@ interface TaskResult {
   taskId: string;
   encryptedResult: string;
   decryptedResult?: string;
+  signature?: string;
 }
 
 // const mockTasks: Task[] = [
@@ -43,6 +47,30 @@ interface TaskResult {
 //   }
 // ];
 
+// 添加用于存储和获取解密结果的工具函数
+const storeDecryptedResult = (taskId: string, decryptedResult: string) => {
+  try {
+    const storedResults = localStorage.getItem('decryptedResults');
+    const results = storedResults ? JSON.parse(storedResults) : {};
+    results[taskId] = decryptedResult;
+    localStorage.setItem('decryptedResults', JSON.stringify(results));
+  } catch (error) {
+    console.error('Failed to store decrypted result:', error);
+  }
+};
+
+const getDecryptedResult = (taskId: string): string | null => {
+  try {
+    const storedResults = localStorage.getItem('decryptedResults');
+    if (!storedResults) return null;
+    const results = JSON.parse(storedResults);
+    return results[taskId] || null;
+  } catch (error) {
+    console.error('Failed to get decrypted result:', error);
+    return null;
+  }
+};
+
 export const TaskResults: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage();
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -56,26 +84,69 @@ export const TaskResults: React.FC = () => {
   const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
   const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
   const [publishedTasks, setPublishedTasks] = useState<Task[]>([]);
+  const [expandedResult, setExpandedResult] = useState(false);
+  const [isViewModalVisible, setIsViewModalVisible] = useState(false);
 
   useEffect(() => {
     refreshTasks();
   }, [isModalVisible]);
 
-  const handleProcessTask = (task: Task) => {
+  // 将 handleViewDecryptedResult 移到组件内部
+  const handleViewDecryptedResult = async (task: Task) => {
+    try {
+      const storedWallet = localStorage.getItem('wallet');
+      if (!storedWallet) {
+        messageApi.error('Please connect your wallet first!');
+        return;
+      }
+
+      const wallet = JSON.parse(storedWallet);
+      
+      // 解密结果
+      const decryptResponse = await fheApi.decrypt(
+        wallet.address,
+        task.businessType as DataType,
+        task.encryptedResult || ''
+      );
+
+      // 更新当前任务的解密结果
+      setCurrentTask(prev => ({
+        ...prev!,
+        decryptedResult: decryptResponse.value.toString()
+      }));
+
+    } catch (error: any) {
+      console.error('Failed to decrypt result:', error);
+      if (error.response?.data?.message) {
+        messageApi.error('Failed to decrypt: ' + error.response.data.message);
+      } else {
+        messageApi.error('Failed to decrypt: ' + error.message);
+      }
+    }
+  };
+
+  // 修改 handleProcessTask 函数
+  const handleProcessTask = async (task: Task) => {
+    console.log('Processing task:', task);
     setCurrentTask(task);
     setTaskResult(null);
     setIsDecrypted(false);
-    setIsModalVisible(true);
+    
+    if (task.status === 'published') {
+      await handleViewDecryptedResult(task);
+      setIsViewModalVisible(true);
+    } else {
+      setIsModalVisible(true);
+    }
   };
 
   const handleRequestResult = async () => {
+    if (!currentTask) return;
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const mockResult: TaskResult = {
-        taskId: currentTask!.id,
-        encryptedResult: 'encrypted-result-' + Math.random().toString(36).substring(7)
-      };
-      setTaskResult(mockResult);
+      setTaskResult({
+        taskId: currentTask.id,
+        encryptedResult: currentTask.encryptedResult || ''
+      });
       messageApi.success('Encrypted result retrieved successfully!');
     } catch (error) {
       messageApi.error('Failed to retrieve result!');
@@ -84,30 +155,82 @@ export const TaskResults: React.FC = () => {
   };
 
   const handleDecryptAndSign = async () => {
+    if (!currentTask || !taskResult) return;
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const storedWallet = localStorage.getItem('wallet');
+      if (!storedWallet) {
+        messageApi.error('Please connect your wallet first!');
+        return;
+      }
+
+      const wallet = JSON.parse(storedWallet);
+      
+      const decryptResponse = await fheApi.decrypt(
+        wallet.address,
+        currentTask.businessType as DataType,
+        taskResult.encryptedResult
+      );
+
+      const decryptedResult = decryptResponse.value.toString();
+      
+      // 存储解密结果
+      storeDecryptedResult(currentTask.id, decryptedResult);
+      
+      const messageHash = ethers.utils.id(decryptedResult);
+      const signature = await new ethers.Wallet(wallet.privateKey).signMessage(
+        ethers.utils.arrayify(messageHash)
+      );
+
       setTaskResult(prev => ({
         ...prev!,
-        decryptedResult: 'decrypted-result-' + Math.random().toString(36).substring(7)
+        decryptedResult,
+        signature
       }));
       setIsDecrypted(true);
       messageApi.success('Result decrypted and signed successfully!');
-    } catch (error) {
-      messageApi.error('Failed to decrypt and sign!');
+    } catch (error: any) {
       console.error('Decrypt and sign failed:', error);
+      if (error.response?.data?.message) {
+        messageApi.error('Failed to decrypt: ' + error.response.data.message);
+      } else {
+        messageApi.error('Failed to decrypt and sign: ' + error.message);
+      }
     }
   };
 
   const handlePublishAndFinish = async () => {
+    if (!currentTask || !taskResult || !taskResult.signature) return;
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const storedWallet = localStorage.getItem('wallet');
+      if (!storedWallet) {
+        messageApi.error('Please connect your wallet first!');
+        return;
+      }
+
+      const wallet = JSON.parse(storedWallet);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
+      
+      const taskManagement = new ethers.Contract(
+        contractConfig.TaskManagement.address,
+        contractConfig.TaskManagement.abi,
+        signer
+      );
+
+      const tx = await taskManagement.publishTaskResult(
+        currentTask.id,
+        taskResult.signature
+      );
+
+      await tx.wait();
       messageApi.success('Result published and task completed!');
       setIsModalVisible(false);
       setCurrentTask(null);
       setTaskResult(null);
       setIsDecrypted(false);
-    } catch (error) {
-      messageApi.error('Failed to publish result!');
+      refreshTasks();
+    } catch (error: any) {
+      messageApi.error('Failed to publish result: ' + error.message);
       console.error('Result publishing failed:', error);
     }
   };
@@ -197,8 +320,10 @@ export const TaskResults: React.FC = () => {
         status: task.isCompleted 
           ? (task.isPublished ? 'published' : 'completed') 
           : 'pending',
-        createdAt: parseInt(task.createdAt._hex, 16)
-        // Ensure all required fields are included and correctly typed
+        createdAt: parseInt(task.createdAt._hex, 16),
+        encryptedResult: task.encryptedResult || '',
+        decryptedResult: task.decryptedResult || '',
+        signature: task.signature || ''
       }));
 
       setPendingTasks(formatTasks(pending));
@@ -313,10 +438,14 @@ export const TaskResults: React.FC = () => {
                 </div>
               </Radio.Button>
               <Radio.Button value="published">
-                <div className="px-2 py-1">
-                  <span>Published {" "}</span>
-                  <Badge count={publishedTasks.length} className="ml-2" />
-                </div>
+              <div className="px-2 py-1">
+                <span>Published {" "}</span>
+                <Badge 
+                  count={publishedTasks.length} 
+                  className="ml-2"
+                  style={{ backgroundColor: '#52c41a' }}  // 使用 Ant Design 的标准绿色
+                />
+              </div>
               </Radio.Button>
             </Radio.Group>
           </div>
@@ -345,7 +474,11 @@ export const TaskResults: React.FC = () => {
           </div>
         }
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={() => {
+          setIsModalVisible(false);
+          setTaskResult(null);
+          setIsDecrypted(false);
+        }}
         footer={null}
         width={700}
         className="custom-modal"
@@ -364,23 +497,69 @@ export const TaskResults: React.FC = () => {
             </Button>
           ) : (
             <div className="space-y-4">
-              <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <div className="mb-4">
-                  <Text strong className="text-lg mb-2 block">Encrypted Result:</Text>
-                  <Paragraph copyable className="mb-0 bg-white p-3 rounded border border-gray-200">
-                    {taskResult.encryptedResult}
-                  </Paragraph>
+              <div className="mb-4">
+                <Text strong className="text-lg mb-2 block">Encrypted Result:</Text>
+                <div className="bg-white p-3 rounded border border-gray-200">
+                  <div className="font-mono break-all">
+                    {expandedResult 
+                      ? taskResult.encryptedResult
+                      : taskResult.encryptedResult.substring(0, 50) + '...'
+                    }
+                  </div>
+                  <Button 
+                    type="link" 
+                    onClick={() => setExpandedResult(!expandedResult)}
+                    size="small"
+                    className="mt-1 p-0"
+                  >
+                    {expandedResult ? 'Show Less' : 'Show More'}
+                  </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    className="mt-1 p-0 ml-4"
+                    onClick={() => {
+                      navigator.clipboard.writeText(taskResult.encryptedResult);
+                      messageApi.success('Copied to clipboard!');
+                    }}
+                  >
+                    Copy
+                  </Button>
                 </div>
-                
-                {isDecrypted && taskResult.decryptedResult && (
+              </div>
+              
+              {isDecrypted && taskResult.decryptedResult && (
+                <div className="space-y-4">
                   <div>
                     <Text strong className="text-lg mb-2 block">Decrypted Result:</Text>
                     <Paragraph copyable className="mb-0 bg-white p-3 rounded border border-gray-200">
                       {taskResult.decryptedResult}
                     </Paragraph>
                   </div>
-                )}
-              </div>
+
+                  <div>
+                    <Text strong className="text-lg mb-2 block">Signature:</Text>
+                    <div className="bg-white p-3 rounded border border-gray-200">
+                      <div className="font-mono break-all">
+                        {taskResult.signature}
+                      </div>
+                      <Button
+                        type="link"
+                        size="small"
+                        className="mt-1 p-0"
+                        onClick={() => {
+                          if (taskResult.signature) {
+                            navigator.clipboard.writeText(taskResult.signature);
+                            messageApi.success('Signature copied to clipboard!');
+                          }
+                        }}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-4">
                 {!isDecrypted ? (
@@ -466,6 +645,86 @@ export const TaskResults: React.FC = () => {
             </Button>
           </div>
         </Form>
+      </Modal>
+
+      <Modal
+        title={
+          <div className="flex items-center space-x-2">
+            <CheckCircleOutlined className="text-green-500" />
+            <span>View Published Task: {currentTask?.id}</span>
+          </div>
+        }
+        open={isViewModalVisible}
+        onCancel={() => {
+          setIsViewModalVisible(false);
+          setCurrentTask(null);
+        }}
+        footer={null}
+        width={700}
+        className="custom-modal"
+      >
+        <div className="space-y-4">
+          <Card size="small" className="shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Text strong>Task Details {" "}</Text>
+                <Tag color="success">Published</Tag>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4 mt-4">
+                <div>
+                  <Text type="secondary">Bank Address:</Text>
+                  <div className="font-mono bg-gray-50 p-2 rounded text-sm mt-1">
+                    {currentTask?.bankId}
+                  </div>
+                </div>
+
+                <div>
+                  <Text type="secondary">Business Type:</Text>
+                  <div className="text-sm mt-1">
+                    {currentTask?.businessType}
+                  </div>
+                </div>
+
+                <div>
+                  <Text type="secondary">Decrypted Result:</Text>
+                  <div className="bg-white p-3 rounded border border-gray-200">
+                    {currentTask?.decryptedResult || 'Decrypting...'}
+                  </div>
+                </div>
+
+                <div>
+                  <Text type="secondary">Signature:</Text>
+                  <div className="font-mono bg-gray-50 p-2 rounded text-sm mt-1">
+                    <div className="break-all">
+                      {currentTask?.signature}
+                    </div>
+                    <Button
+                      type="link"
+                      size="small"
+                      className="mt-1 p-0"
+                      onClick={() => {
+                        if (currentTask?.signature) {
+                          navigator.clipboard.writeText(currentTask.signature);
+                          messageApi.success('Signature copied to clipboard!');
+                        }
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <Text type="secondary">Created At:</Text>
+                  <div className="text-sm mt-1">
+                    {new Date(currentTask?.createdAt || 0).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
       </Modal>
     </>
   );

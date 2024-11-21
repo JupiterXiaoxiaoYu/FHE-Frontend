@@ -26,6 +26,21 @@ interface ContractTask {
   createdAt: number;
 }
 
+// 添加验证签名的函数
+const verifySignature = (message: string, signature: string) => {
+  try {
+    // 从签名中恢复地址
+    const recoveredAddress = ethers.utils.verifyMessage(
+      ethers.utils.arrayify(ethers.utils.id(message)),
+      signature
+    );
+    return recoveredAddress;
+  } catch (error) {
+    console.error('Failed to verify signature:', error);
+    return null;
+  }
+};
+
 export const TaskList: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage();
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -337,21 +352,25 @@ export const TaskList: React.FC = () => {
             >
               <Radio.Button value="pending">
                 <div className="px-2 py-1">
-                  <span>Pending Tasks</span>
+                  <span>Pending Tasks {" "}</span>
                   <Badge count={pendingTasks.length} className="ml-2" />
                 </div>
               </Radio.Button>
               <Radio.Button value="completed">
                 <div className="px-2 py-1">
-                  <span>Completed Unpublished</span>
+                  <span>Completed Unpublished {" "}</span>
                   <Badge count={completedTasks.length} className="ml-2" />
                 </div>
               </Radio.Button>
               <Radio.Button value="published">
-                <div className="px-2 py-1">
-                  <span>Published</span>
-                  <Badge count={publishedTasks.length} className="ml-2" />
-                </div>
+              <div className="px-2 py-1">
+                <span>Published {" "}</span>
+                <Badge 
+                  count={publishedTasks.length} 
+                  className="ml-2"
+                  style={{ backgroundColor: '#52c41a' }}  // 使用 Ant Design 的标准绿色
+                />
+              </div>
               </Radio.Button>
             </Radio.Group>
           </div>
@@ -547,7 +566,7 @@ export const TaskList: React.FC = () => {
             <div className="space-y-2">
               <div className="flex justify-between items-center gap-2">
                 <Text strong>Task ID: {currentTask?.taskId} {" "} </Text>
-                <Tag color="green"> Completed</Tag>
+                <Tag color="green">Completed</Tag>
               </div>
               <div className="grid grid-cols-1 gap-2 mt-2">
                 <div>
@@ -575,6 +594,49 @@ export const TaskList: React.FC = () => {
                     </Button>
                   </div>
                 </div>
+                {currentTask?.signature && (
+                  <div>
+                    <Text type="secondary">Signature:</Text>
+                    <div className="font-mono bg-gray-50 p-2 rounded text-sm mt-1">
+                      <div className="break-all">
+                        {currentTask.signature}
+                      </div>
+                      <div className="flex space-x-4">
+                        <Button
+                          type="link"
+                          size="small"
+                          className="mt-1 p-0"
+                          onClick={() => {
+                            navigator.clipboard.writeText(currentTask.signature);
+                            messageApi.success('Signature copied to clipboard!');
+                          }}
+                        >
+                          Copy
+                        </Button>
+                        {/* <Button
+                          type="link"
+                          size="small"
+                          className="mt-1 p-0"
+                          onClick={() => {
+                            if (computationResult) {
+                              const recoveredAddress = verifySignature(
+                                computationResult,
+                                currentTask.signature
+                              );
+                              if (recoveredAddress) {
+                                messageApi.success('Signature verified! Signer: ' + recoveredAddress);
+                              } else {
+                                messageApi.error('Invalid signature!');
+                              }
+                            }
+                          }}
+                        >
+                          Verify
+                        </Button> */}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <Text type="secondary">Computation Time:</Text>
                   <div className="text-sm mt-1">

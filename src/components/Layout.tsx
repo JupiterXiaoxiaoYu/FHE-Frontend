@@ -52,13 +52,13 @@ export const Layout: React.FC = () => {
           >
             <Link to="/bank" className="text-gray-800 hover:text-blue-600 transition-colors">Bank Portal</Link>
           </Menu.Item>
-          <Menu.Item 
+          {/* <Menu.Item 
             key="test" 
             icon={<ExperimentOutlined style={{ fontSize: '24px' }} />}
             style={{ padding: '0 24px' }}
           >
             <Link to="/test" className="text-gray-800 hover:text-blue-600 transition-colors">Test</Link>
-          </Menu.Item>
+          </Menu.Item> */}
         </Menu>
         <div style={{ marginLeft: 'auto' }}>
           <WalletModal />

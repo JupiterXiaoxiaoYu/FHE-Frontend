@@ -5,6 +5,9 @@ export interface Task {
   status: 'pending' | 'completed' | 'published';
   result?: string;
   createdAt: number;
+  signature?: string;
+  decryptedResult?: string;
+  encryptedResult?: string;
 }
 
 export interface Bank {

@@ -9,7 +9,7 @@ export const fiscobcos = defineChain({
   name: 'Fisco Bcos',
   nativeCurrency: {
     decimals: 18,
-    name: 'FISCO BCOS Token',
+    name: 'FISCO BCOS',
     symbol: 'FBT',
   },
   rpcUrls: {

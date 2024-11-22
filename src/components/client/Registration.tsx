@@ -55,7 +55,7 @@ export const Registration: React.FC = () => {
 
   const handleGenerateKeys = async () => {
     if (!wallet) {
-      messageApi.error('Please create a wallet first!');
+      messageApi.error('Please create an account first!');
       return;
     }
 
@@ -98,7 +98,7 @@ export const Registration: React.FC = () => {
   const handleRegister = async () => {
     const storedWallet = localStorage.getItem('wallet');
     if (!storedWallet || !keys) {
-      messageApi.error('Please generate keys and create wallet first!');
+      messageApi.error('Please generate keys and create account first!');
       return;
     }
 

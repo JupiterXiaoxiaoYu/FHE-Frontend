@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { ethers } from 'ethers';
 import contractConfig from '../../config/contracts';
+import { eventBus } from '../../utils/eventBus';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -86,26 +87,32 @@ export const BankRegistration: React.FC = () => {
   const handleRevoke = async () => {
     try {
       const storedKeys = localStorage.getItem('wallet');
-      if (!storedKeys) {
-        messageApi.error('Please generate bank keys first!');
-        return;
-      }
-      const keys = JSON.parse(storedKeys);
+      // if (!storedKeys) {
+      //   messageApi.error('Please generate bank keys first!');
+      //   return;
+      // }
+      // const keys = JSON.parse(storedKeys);
       const provider = new ethers.providers.JsonRpcProvider('/api');
-      const signer = new ethers.Wallet(keys.privateKey, provider);
+      // const signer = new ethers.Wallet(keys.privateKey, provider);
       
-      const bankRegistry = new ethers.Contract(
-        contractConfig.BankRegistry.address,
-        contractConfig.BankRegistry.abi,
-        signer
-      );
+      // const bankRegistry = new ethers.Contract(
+      //   contractConfig.BankRegistry.address,
+      //   contractConfig.BankRegistry.abi,
+      //   signer
+      // );
 
       // const tx = await bankRegistry.deactivateBank(keys.address);
       // await tx.wait();
 
+      // 清除所有相关数据
       localStorage.removeItem('bankInfo');
+      localStorage.removeItem('encryptedDataList'); // 清除加密历史
       setBankInfo(null);
-      messageApi.success('Bank registration revoked successfully!');
+      
+      // 发出事件通知其他组件
+      eventBus.emit('bankRevoked');
+      
+      messageApi.success('Bank registration and all related data have been revoked successfully!');
     } catch (error) {
       messageApi.error('Failed to revoke registration!');
       console.error('Revoke failed:', error);

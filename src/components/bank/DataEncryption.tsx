@@ -12,6 +12,7 @@ import { fheApi } from '../../services/fheApi';
 import { DataType } from '../../services/fheApi';
 import * as ethers from 'ethers';
 import { contractConfig } from '../../config/contracts';
+import { eventBus } from '../../utils/eventBus';
 
 const { Text, Paragraph } = Typography;
 
@@ -40,29 +41,55 @@ const DATA_TYPES: Array<{
 export const DataEncryption: React.FC = () => {
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
-  const [encryptedDataList, setEncryptedDataList] = useState<EncryptedData[]>([
-    // {
-    //   id: 'mock-1',
-    //   userPublicKey: 'user-public-key-7f9c8b3a2d1e',
-    //   fhePublicKey: 'fhe-public-key-4k5j6h7g8f9d',
-    //   dataType: 'credit_score',
-    //   encryptedValue: 'encrypted-data-9d8f7e6a5b4c3d2e1f-credit-score-value-mock',
-    //   timestamp: Date.now() - 3600000, // 1小时前
-    //   onChain: true,
-    // },
-    // {
-    //   id: 'mock-2',
-    //   userPublicKey: 'user-public-key-2b3c4d5e6f7g',
-    //   fhePublicKey: 'fhe-public-key-8h9j0k1l2m3n',
-    //   dataType: 'income',
-    //   encryptedValue: 'encrypted-data-5f4e3d2c1b0a9z8y7x-income-value-mock',
-    //   timestamp: Date.now() - 7200000, // 2小时前
-    //   onChain: false,
-    // }
-  ]);
-
-  // 添加状态来跟踪每个加密数据的展开状态
+  const [encryptedDataList, setEncryptedDataList] = useState<EncryptedData[]>([]);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  // 添加事件监听
+  useEffect(() => {
+    // 从 localStorage 加载历史记录
+    const loadEncryptionHistory = () => {
+      const storedData = localStorage.getItem('encryptedDataList');
+      if (storedData) {
+        setEncryptedDataList(JSON.parse(storedData));
+      }
+    };
+
+    // 检查银行注册状态
+    const checkBankStatus = () => {
+      const bankInfo = localStorage.getItem('bankInfo');
+      if (!bankInfo) {
+        setEncryptedDataList([]); // 清空加密历史
+        localStorage.removeItem('encryptedDataList');
+      }
+    };
+
+    // 初始加载
+    loadEncryptionHistory();
+    checkBankStatus();
+
+    // 监听银行撤销事件
+    const handleBankRevoked = () => {
+      setEncryptedDataList([]);
+      setExpandedItems({});
+      form.resetFields();
+    };
+
+    eventBus.on('bankRevoked', handleBankRevoked);
+
+    // 清理函数
+    return () => {
+      eventBus.off('bankRevoked', handleBankRevoked);
+    };
+  }, [form]);
+
+  // 在加密数据列表更新时保存到 localStorage
+  useEffect(() => {
+    if (encryptedDataList.length > 0) {
+      localStorage.setItem('encryptedDataList', JSON.stringify(encryptedDataList));
+    } else {
+      localStorage.removeItem('encryptedDataList');
+    }
+  }, [encryptedDataList]);
 
   // 添加切换展开/收起的处理函数
   const toggleExpand = (id: string) => {
@@ -166,6 +193,7 @@ export const DataEncryption: React.FC = () => {
       console.log('Current block timestamp:', currentBlockTimestamp);
       console.log('Expiry date:', expiryDate);
 
+      console.log('dataToUpload.userPublicKey:', dataToUpload.userPublicKey);
       // 调用合约存储数据
       const tx = await dataStorage.storeUserData(
         dataToUpload.userPublicKey,  // 用户地址
@@ -216,21 +244,6 @@ export const DataEncryption: React.FC = () => {
     }
   };
 
-  // 在组件顶部添加 useEffect 来加载存储的历史记录
-  useEffect(() => {
-    const storedHistory = localStorage.getItem('encryptionHistory');
-    if (storedHistory) {
-      setEncryptedDataList(JSON.parse(storedHistory));
-    }
-  }, []);
-
-  // 添加一个 useEffect 来监听和保存历史记录的变化
-  useEffect(() => {
-    if (encryptedDataList.length > 0) {
-      localStorage.setItem('encryptionHistory', JSON.stringify(encryptedDataList));
-    }
-  }, [encryptedDataList]);
-
   // 添加删除单条记录的函数
   const handleDeleteRecord = (id: string) => {
     Modal.confirm({
@@ -258,216 +271,226 @@ export const DataEncryption: React.FC = () => {
   return (
     <>
       {contextHolder}
-      <Form
-        form={form}
-        onFinish={handleEncrypt}
-        layout="vertical"
-        className="mb-8"
-      >
-        {/* 密钥输入区域 */}
-        <Row gutter={16} className="mb-2">
-          <Col span={16}>
-            <Form.Item
-              name="userPublicKey"
-              label={<Text strong>User Public Key</Text>}
-              rules={[{ required: true, message: 'Please input user public key!' }]}
-            >
-              <Input
-                placeholder="Enter user public key"
-                className="font-mono h-10"
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="dataType"
-              label={<Text strong>Data Type</Text>}
-              rules={[{ required: true, message: 'Please select data type!' }]}
-            >
-              <Select
-                placeholder="Select data type"
-                className="h-10"
-                options={DATA_TYPES.map(type => ({
-                  value: type.value,
-                  label: (
-                    <div>
-                      <div>{type.label} For {type.task}</div>
-                      {/* <div className="text-xs text-gray-400"></div> */}
-                    </div>
-                  )
-                }))}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Row gutter={16}>
-          <Col span={16}>
-            <Form.Item
-              name="fhePublicKey"
-              label={<Text strong>FHE Public Key</Text>}
-              rules={[{ required: true, message: 'Please request FHE public key!' }]}
-            >
-              <Input
-                placeholder="FHE public key will appear here"
-                readOnly
-                className="font-mono h-10 bg-gray-50"
-                suffix={
-                  <Button
-                    type="primary"
-                    icon={<KeyOutlined />}
-                    onClick={handleRequestFHEKey}
-                    size="small"
-                    className="ml-2"
-                  >
-                    Request FHE Public Key
-                  </Button>
-                }
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="data"
-              label={<Text strong>Raw Data</Text>}
-              rules={[{ required: true, message: 'Please input data!' }]}
-            >
-              <Input 
-                placeholder="Enter data to encrypt" 
-                className="h-10"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        {/* 加密按钮 */}
-        <Form.Item className="mb-0">
-          <Button
-            type="primary"
-            htmlType="submit"
-            icon={<LockOutlined />}
-            className="h-10"
-            block
+      {!localStorage.getItem('bankInfo') ? (
+        <div className="text-center py-8">
+          <Text type="secondary">
+            Please register your bank first to access encryption features.
+          </Text>
+        </div>
+      ) : (
+        <>
+          <Form
+            form={form}
+            onFinish={handleEncrypt}
+            layout="vertical"
+            className="mb-8"
           >
-            Encrypt Data
-          </Button>
-        </Form.Item>
-      </Form>
+            {/* 密钥输入区域 */}
+            <Row gutter={16} className="mb-2">
+              <Col span={16}>
+                <Form.Item
+                  name="userPublicKey"
+                  label={<Text strong>User Public Key</Text>}
+                  rules={[{ required: true, message: 'Please input user public key!' }]}
+                >
+                  <Input
+                    placeholder="Enter user public key"
+                    className="font-mono h-10"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="dataType"
+                  label={<Text strong>Data Type</Text>}
+                  rules={[{ required: true, message: 'Please select data type!' }]}
+                >
+                  <Select
+                    placeholder="Select data type"
+                    className="h-10"
+                    options={DATA_TYPES.map(type => ({
+                      value: type.value,
+                      label: (
+                        <div>
+                          <div>{type.label} For {type.task}</div>
+                          {/* <div className="text-xs text-gray-400"></div> */}
+                        </div>
+                      )
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
 
-      {/* 加密历史记录 */}
-      {encryptedDataList.length > 0 && (
-        <div>
-          <div className="flex justify-between items-center mb-10">
-            <div className="flex items-center gap-2">
-              <LockOutlined className="text-gray-400" />
-              <Text strong className="text-lg">
-                Encryption History {" "}
-              </Text>
-              <Badge 
-                  count={encryptedDataList.length} 
-                  className="ml-2"
-                  style={{ backgroundColor: '#52c41a' }}
-                />
-            </div>
-          </div>
-          <div className="space-y-4 mt-4">
-            {encryptedDataList.map(item => (
-              <Card 
-                key={item.id} 
-                size="small" 
-                className="shadow-sm hover:shadow-md transition-shadow border border-gray-100"
-                extra={
-                  <div className="flex items-center gap-2">
-                    {item.onChain ? (
-                      <Badge 
-                        status="success" 
-                        text={
-                          <span className="flex items-center gap-10 px-2">
-                            <CheckCircleOutlined className="text-green-500" />
-                            <Text type="success" className="font-medium"> On Chain</Text>
-                          </span>
-                        }
-                      />
-                    ) : (
+            <Row gutter={16}>
+              <Col span={16}>
+                <Form.Item
+                  name="fhePublicKey"
+                  label={<Text strong>FHE Public Key</Text>}
+                  rules={[{ required: true, message: 'Please request FHE public key!' }]}
+                >
+                  <Input
+                    placeholder="FHE public key will appear here"
+                    readOnly
+                    className="font-mono h-10 bg-gray-50"
+                    suffix={
                       <Button
                         type="primary"
-                        icon={item.uploading ? <LoadingOutlined /> : <CloudUploadOutlined />}
-                        onClick={() => handleUploadToChain(item.id)}
-                        loading={item.uploading}
+                        icon={<KeyOutlined />}
+                        onClick={handleRequestFHEKey}
                         size="small"
-                        className="flex items-center gap-1.5"
+                        className="ml-2"
                       >
-                        <span>Upload to Chain</span>
+                        Request FHE Public Key
                       </Button>
-                    )}
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDeleteRecord(item.id)}
-                      size="small"
-                    />
-                  </div>
-                }
-              >
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Tag color="blue" className="m-0">
-                        {item.dataType}
-                      </Tag>
-                    </div>
-                    <Text type="secondary" className="text-sm">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </Text>
-                  </div>
-                  
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <Text type="secondary" className="text-sm">Encrypted Value:</Text>
-                      <Button 
-                        type="link" 
-                        size="small"
-                        onClick={() => toggleExpand(item.id)}
-                      >
-                        {expandedItems[item.id] ? 'Show Less' : 'Show More'}
-                      </Button>
-                    </div>
-                    <Tooltip title="Click to copy" placement="top">
-                      <Paragraph 
-                        copyable={{ 
-                          text: item.encryptedValue,
-                          tooltips: ['Copy', 'Copied!'],
-                        }} 
-                        className="mb-0 font-mono text-sm leading-relaxed break-all"
-                      >
-                        {expandedItems[item.id] 
-                          ? item.encryptedValue
-                          : `${item.encryptedValue.substring(0, 50)}...`
-                        }
-                      </Paragraph>
-                    </Tooltip>
-                  </div>
+                    }
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="data"
+                  label={<Text strong>Raw Data</Text>}
+                  rules={[{ required: true, message: 'Please input data!' }]}
+                >
+                  <Input 
+                    placeholder="Enter data to encrypt" 
+                    className="h-10"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
 
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <Text type="secondary" className="block mb-1">User Public Key</Text>
-                      <div className="font-mono bg-gray-50 p-2 rounded truncate">
-                        {item.userPublicKey.substring(0, 20)}...
-                      </div>
-                    </div>
-                    <div>
-                      <Text type="secondary" className="block mb-1">FHE Public Key</Text>
-                      <div className="font-mono bg-gray-50 p-2 rounded truncate">
-                        {item.fhePublicKey.substring(0, 20)}...
-                      </div>
-                    </div>
-                  </div>
+            {/* 加密按钮 */}
+            <Form.Item className="mb-0">
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<LockOutlined />}
+                className="h-10"
+                block
+              >
+                Encrypt Data
+              </Button>
+            </Form.Item>
+          </Form>
+
+          {/* 加密历史记录 */}
+          {encryptedDataList.length > 0 && (
+            <div>
+              <div className="flex justify-between items-center mb-10">
+                <div className="flex items-center gap-2">
+                  <LockOutlined className="text-gray-400" />
+                  <Text strong className="text-lg">
+                    Encryption History {" "}
+                  </Text>
+                  <Badge 
+                      count={encryptedDataList.length} 
+                      className="ml-2"
+                      style={{ backgroundColor: '#52c41a' }}
+                    />
                 </div>
-              </Card>
-            ))}
-          </div>
-        </div>
+              </div>
+              <div className="space-y-4 mt-4">
+                {encryptedDataList.map(item => (
+                  <Card 
+                    key={item.id} 
+                    size="small" 
+                    className="shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                    extra={
+                      <div className="flex items-center gap-2">
+                        {item.onChain ? (
+                          <Badge 
+                            status="success" 
+                            text={
+                              <span className="flex items-center gap-10 px-2">
+                                <CheckCircleOutlined className="text-green-500" />
+                                <Text type="success" className="font-medium"> On Chain</Text>
+                              </span>
+                            }
+                          />
+                        ) : (
+                          <Button
+                            type="primary"
+                            icon={item.uploading ? <LoadingOutlined /> : <CloudUploadOutlined />}
+                            onClick={() => handleUploadToChain(item.id)}
+                            loading={item.uploading}
+                            size="small"
+                            className="flex items-center gap-1.5"
+                          >
+                            <span>Upload to Chain</span>
+                          </Button>
+                        )}
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDeleteRecord(item.id)}
+                          size="small"
+                        />
+                      </div>
+                    }
+                  >
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Tag color="blue" className="m-0">
+                            {item.dataType}
+                          </Tag>
+                        </div>
+                        <Text type="secondary" className="text-sm">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </Text>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                          <Text type="secondary" className="text-sm">Encrypted Value:</Text>
+                          <Button 
+                            type="link" 
+                            size="small"
+                            onClick={() => toggleExpand(item.id)}
+                          >
+                            {expandedItems[item.id] ? 'Show Less' : 'Show More'}
+                          </Button>
+                        </div>
+                        <Tooltip title="Click to copy" placement="top">
+                          <Paragraph 
+                            copyable={{ 
+                              text: item.encryptedValue,
+                              tooltips: ['Copy', 'Copied!'],
+                            }} 
+                            className="mb-0 font-mono text-sm leading-relaxed break-all"
+                          >
+                            {expandedItems[item.id] 
+                              ? item.encryptedValue
+                              : `${item.encryptedValue.substring(0, 50)}...`
+                            }
+                          </Paragraph>
+                        </Tooltip>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <Text type="secondary" className="block mb-1">User Public Key</Text>
+                          <div className="font-mono bg-gray-50 p-2 rounded truncate">
+                            {item.userPublicKey.substring(0, 20)}...
+                          </div>
+                        </div>
+                        <div>
+                          <Text type="secondary" className="block mb-1">FHE Public Key</Text>
+                          <div className="font-mono bg-gray-50 p-2 rounded truncate">
+                            {item.fhePublicKey.substring(0, 20)}...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </>
   );

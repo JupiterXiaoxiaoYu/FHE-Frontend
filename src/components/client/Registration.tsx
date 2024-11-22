@@ -117,6 +117,9 @@ export const Registration: React.FC = () => {
       );
 
       console.log('Registering user...');
+
+      // console.log('keys.publicKey:', keys.publicKey);
+
       const tx = await userRegistry.registerUser(
         wallet.address,
         keys.publicKey,

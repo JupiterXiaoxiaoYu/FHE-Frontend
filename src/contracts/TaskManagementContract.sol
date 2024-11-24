@@ -80,6 +80,7 @@ contract TaskManagementContract {
         string memory result
     ) public noReentrant {
         require(accessControl.isBank(msg.sender), "Caller is not bank");
+        require(msg.sender == tasks[taskId].bankAddress, "Not assigned bank");
         
         Task storage task = tasks[taskId];
         require(!task.isCompleted, "Task already completed");
@@ -95,6 +96,7 @@ contract TaskManagementContract {
         bytes memory signature
     ) public noReentrant {
         require(accessControl.isRegisteredUser(msg.sender), "User not registered");
+        require(msg.sender == tasks[taskId].userAddress, "Not task owner");
         
         Task storage task = tasks[taskId];
         require(task.isCompleted, "Task not completed");

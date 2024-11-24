@@ -131,7 +131,7 @@ export const Registration: React.FC = () => {
       console.log('Transaction confirmed:', receipt);
 
       localStorage.setItem('isRegistered', 'true');
-      setIsRegistered(true);
+      setIsContractRegistered(true);
       messageApi.success('Registration successful!');
     } catch (error) {
       messageApi.error('Registration failed!');

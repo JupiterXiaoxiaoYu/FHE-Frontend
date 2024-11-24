@@ -86,31 +86,30 @@ export const BankRegistration: React.FC = () => {
 
   const handleRevoke = async () => {
     try {
-      const storedKeys = localStorage.getItem('wallet');
-      // if (!storedKeys) {
-      //   messageApi.error('Please generate bank keys first!');
-      //   return;
-      // }
-      // const keys = JSON.parse(storedKeys);
-      const provider = new ethers.providers.JsonRpcProvider('/api');
-      // const signer = new ethers.Wallet(keys.privateKey, provider);
-      
-      // const bankRegistry = new ethers.Contract(
-      //   contractConfig.BankRegistry.address,
-      //   contractConfig.BankRegistry.abi,
-      //   signer
-      // );
+      // 清除所有本地存储的数据
+      const keysToRemove = [
+        'wallet',              
+        'bankInfo',           
+        'encryptedDataList',  
+        'encryptionHistory',  
+        'isRegistered',       
+        'fheKeys',            
+        'taskHistory',        
+        'computationResults'  
+      ];
 
-      // const tx = await bankRegistry.deactivateBank(keys.address);
-      // await tx.wait();
+      // 批量删除本地存储
+      keysToRemove.forEach(key => localStorage.removeItem(key));
 
-      // 清除所有相关数据
-      localStorage.removeItem('bankInfo');
-      localStorage.removeItem('encryptedDataList'); // 清除加密历史
+      // 重置所有相关状态
       setBankInfo(null);
+      form.resetFields();
       
       // 发出事件通知其他组件
       eventBus.emit('bankRevoked');
+      
+      // 强制刷新组件状态
+      window.dispatchEvent(new Event('storage'));
       
       messageApi.success('Bank registration and all related data have been revoked successfully!');
     } catch (error) {
@@ -118,6 +117,20 @@ export const BankRegistration: React.FC = () => {
       console.error('Revoke failed:', error);
     }
   };
+
+  // 添加 storage 事件监听
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const storedInfo = localStorage.getItem('bankInfo');
+      if (!storedInfo) {
+        setBankInfo(null);
+        form.resetFields();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [form]);
 
   return (
     <>

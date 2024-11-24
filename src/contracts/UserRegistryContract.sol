@@ -30,21 +30,18 @@ contract UserRegistryContract {
         string memory serverKey
     ) public {
         require(!users[msg.sender].isActive, "User already registered");
-        if (!users[msg.sender].isActive) {
-            users[msg.sender].isActive = true;
-        } else {
-            uint256 userId = nextUserId++;
-            users[msg.sender] = User(
-                publicKey,
-                fhePublicKey,
-                serverKey,
-                userId,
-                true
-            );
+        require(bytes(fhePublicKey).length > 0 && bytes(serverKey).length > 0, "Invalid keys");
+        uint256 userId = nextUserId++;
+        users[msg.sender] = User(
+            publicKey,
+            fhePublicKey,
+            serverKey,
+            userId,
+            true
+        );
 
-            accessControl.registerUser(msg.sender);
-            emit UserRegistered(msg.sender, userId);
-        }
+        accessControl.registerUser(msg.sender);
+        emit UserRegistered(msg.sender, userId);
     }
 
     function deactivateUser(address userAddress) public {

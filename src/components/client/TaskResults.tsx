@@ -312,7 +312,8 @@ export const TaskResults: React.FC = () => {
       const [pending, completed, published] = await Promise.all([
         taskManagement.getUserPendingTasks(wallet.address),
         taskManagement.getUserCompletedUnpublishedTasks(wallet.address),
-        taskManagement.getUserCompletedAndPublishedTasks(wallet.address)
+        taskManagement.getUserCompletedAndPublishedTasks(wallet.address),
+        [],[]
       ]);
 
       const formatTasks = (tasks: any[]): Task[] => tasks.map((task: any) => ({

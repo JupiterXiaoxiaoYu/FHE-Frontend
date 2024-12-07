@@ -62,6 +62,21 @@ export const TaskList: React.FC = () => {
   const [completedTasks, setCompletedTasks] = useState<ContractTask[]>([]);
   const [publishedTasks, setPublishedTasks] = useState<ContractTask[]>([]);
 
+  // Add wallet change listener
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'bank_wallet') {
+        fetchTasks();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   // 获取银行任务列表
   const fetchTasks = async () => {
     try {

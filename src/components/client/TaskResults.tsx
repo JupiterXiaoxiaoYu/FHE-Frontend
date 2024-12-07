@@ -174,14 +174,14 @@ export const TaskResults: React.FC = () => {
       
       const decryptResponse = await fheApi.decrypt(
         wallet.address,
-        currentTask.businessType as DataType,
-        taskResult.encryptedResult
+        currentTask?.businessType as DataType,
+        taskResult?.encryptedResult || ''
       );
 
       const decryptedResult = decryptResponse.value.toString();
       
       // 存储解密结果
-      storeDecryptedResult(currentTask.id, decryptedResult);
+      storeDecryptedResult(currentTask?.id || '', decryptedResult);
       
       const messageHash = ethers.utils.id(decryptedResult);
       const signature = await new ethers.Wallet(wallet.privateKey).signMessage(
@@ -223,8 +223,8 @@ export const TaskResults: React.FC = () => {
       );
 
       const tx = await taskManagement.publishTaskResult(
-        currentTask.id,
-        taskResult.signature
+        currentTask?.id,
+        taskResult?.signature
       );
 
       await tx.wait();
@@ -733,7 +733,7 @@ export const TaskResults: React.FC = () => {
         title={
           <div className="flex items-center space-x-2">
             <CheckCircleOutlined className="text-green-500" />
-            <span>View Published Task: {currentTask?.id}</span>
+            <span> View Published Task: {currentTask?.id}</span>
           </div>
         }
         open={isViewModalVisible}

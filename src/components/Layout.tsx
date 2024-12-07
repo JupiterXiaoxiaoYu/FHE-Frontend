@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Layout as AntLayout, Menu } from 'antd';
 import { Link } from 'react-router-dom';
 import { HomeOutlined, UserOutlined, BankOutlined, ExperimentOutlined } from '@ant-design/icons';
@@ -10,6 +10,9 @@ import { BankWalletModal } from './wallet/BankWalletModal';
 const { Header, Content } = AntLayout;
 
 export const Layout: React.FC = () => {
+  const location = useLocation();
+  const currentPath = location.pathname.split('/')[1] || 'home';
+
   return (
     <AntLayout className="min-h-screen">
       <Header 
@@ -37,6 +40,7 @@ export const Layout: React.FC = () => {
         <Menu 
           mode="horizontal" 
           className="border-0 flex-1"
+          selectedKeys={[currentPath]}
           style={{
             minWidth: 0,
             flex: 'auto',

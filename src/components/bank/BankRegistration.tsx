@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, message, Typography, Row, Col, Card, Badge, Tooltip } from 'antd';
+import { Form, Input, Button, message, Typography, Row, Col, Card, Badge, Tooltip, Space } from 'antd';
 import { BankOutlined, KeyOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons';
 import * as ethers from 'ethers';
 import { contractConfig } from '../../config/contracts';
 
-const { Text, Title } = Typography;
+const { Text, Title, Paragraph } = Typography;
 
 interface BankInfo {
   weId: string;
@@ -149,50 +149,54 @@ export const BankRegistration: React.FC = () => {
       {contextHolder}
       <div className="space-y-6" key={forceUpdate}>
         {bankInfo ? (
-          <div>
-            <Row gutter={24} align="middle">
-              {/* 左侧：基本信息 */}
+          <div className="space-y-6">
+            <Row gutter={24}>
               <Col span={16}>
-                <div className="flex items-start space-x-4">
-                  <div className="flex-grow space-y-4">
-                    <div>
+                <Space direction="vertical" className="w-full" size="large">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
                       <Text type="secondary">Bank WeID</Text>
-                      <div className="font-mono bg-gray-50 p-2 rounded mt-1">
-                        {bankInfo.weId}
-                      </div>
                     </div>
-                    <div>
-                      <Text type="secondary">Public Key</Text>
-                      <div className="font-mono bg-gray-50 p-2 rounded mt-1 break-all">
-                        {bankInfo.publicKey}
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <div>
-                        <Text type="secondary">Registration Time</Text>
-                        <div className="mt-1">
-                          {new Date(bankInfo.registrationTime).toLocaleString()}
-                        </div>
-                      </div>
-                      <div>
-                        <Text type="secondary">Bank ID</Text>
-                        <div className="mt-1">#{bankInfo.id}</div>
-                      </div>
-                      <div>
-                        <Text type="secondary">Status</Text>
-                        <div className="mt-1">
-                          <Badge 
-                            status={bankInfo.isActive ? "success" : "error"} 
-                            text={bankInfo.isActive ? "Active" : "Inactive"}
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <Paragraph copyable className="font-mono bg-gray-50 p-3 rounded mb-0">
+                      {bankInfo.weId}
+                    </Paragraph>
                   </div>
-                </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Text type="secondary">Public Key</Text>
+                    </div>
+                    <Paragraph copyable className="font-mono bg-gray-50 p-3 rounded mb-0 break-all">
+                      {bankInfo.publicKey}
+                    </Paragraph>
+                  </div>
+
+                  <Row gutter={24}>
+                    <Col span={12}>
+                      <Text type="secondary">Registration Time</Text>
+                      <div className="font-mono bg-gray-50 p-3rounded mt-1">
+                        {new Date(bankInfo.registrationTime).toLocaleString()}
+                      </div>
+                    </Col>
+                    <Col span={6}>
+                      <Text type="secondary">Bank ID</Text>
+                      <div className="font-mono bg-gray-50 p-3rounded mt-1">
+                        #{bankInfo.id}
+                      </div>
+                    </Col>
+                    <Col span={6}>
+                      <Text type="secondary">Status</Text>
+                      <div className="bg-gray-50 p-3 rounded mt-1">
+                        <Badge 
+                          status={bankInfo.isActive ? "success" : "error"} 
+                          text={bankInfo.isActive ? "Active" : "Inactive"}
+                        />
+                      </div>
+                    </Col>
+                  </Row>
+                </Space>
               </Col>
-              
-              {/* 右侧：操作按钮 */}
+
               <Col span={8} className="text-right">
                 <Tooltip title="Revoke bank registration and clear all data">
                   <Button 

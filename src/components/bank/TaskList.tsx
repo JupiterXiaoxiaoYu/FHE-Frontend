@@ -609,7 +609,7 @@ export const TaskList: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-                {currentTask?.signature && (
+                {currentTask?.signature && currentTask?.signature !== "0x" && (
                   <div>
                     <Text type="secondary">Signature:</Text>
                     <div className="font-mono bg-gray-50 p-2 rounded text-sm mt-1">

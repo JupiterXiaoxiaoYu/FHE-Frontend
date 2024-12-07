@@ -160,6 +160,7 @@ export const TaskResults: React.FC = () => {
   };
 
   const handleDecryptAndSign = async () => {
+    if (!currentTask || !taskResult) return;
     try {
       setDecrypting(true);
       const storedWallet = localStorage.getItem('client_wallet');
@@ -169,19 +170,19 @@ export const TaskResults: React.FC = () => {
       }
 
       const wallet = JSON.parse(storedWallet);
-      const provider = new ethers.providers.JsonRpcProvider('/api');
-      const signer = new ethers.Wallet(wallet.privateKey, provider);
-      
+      // const provider = new ethers.providers.JsonRpcProvider('/api');
+      // const signer = new ethers.Wallet(wallet.privateKey, provider);
+      console.log(wallet.address, currentTask?.businessType, taskResult?.encryptedResult);
       const decryptResponse = await fheApi.decrypt(
         wallet.address,
         currentTask?.businessType as DataType,
-        taskResult?.encryptedResult || ''
+        taskResult?.encryptedResult
       );
 
       const decryptedResult = decryptResponse.value.toString();
       
       // 存储解密结果
-      storeDecryptedResult(currentTask?.id || '', decryptedResult);
+      storeDecryptedResult(currentTask?.id, decryptedResult);
       
       const messageHash = ethers.utils.id(decryptedResult);
       const signature = await new ethers.Wallet(wallet.privateKey).signMessage(

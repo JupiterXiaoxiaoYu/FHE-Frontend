@@ -66,7 +66,7 @@ export const TaskList: React.FC = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const storedWallet = localStorage.getItem('wallet');
+      const storedWallet = localStorage.getItem('bank_wallet');
       if (!storedWallet) {
         messageApi.error('Please connect your account first!');
         return;
@@ -125,9 +125,9 @@ export const TaskList: React.FC = () => {
     if (!currentTask) return;
     try {
       setUserDataLoading(true);
-      const storedWallet = localStorage.getItem('wallet');
+      const storedWallet = localStorage.getItem('bank_wallet');
       if (!storedWallet) {
-        messageApi.error('Please connect your account first!');
+        messageApi.error('Please connect your bank account first!');
         return;
       }
 
@@ -166,7 +166,7 @@ export const TaskList: React.FC = () => {
     if (!currentTask || !userData) return;
     try {
       setComputationLoading(true);
-      const storedWallet = localStorage.getItem('wallet');
+      const storedWallet = localStorage.getItem('bank_wallet');
       if (!storedWallet) {
         messageApi.error('Please connect your account first!');
         return;
@@ -204,7 +204,7 @@ export const TaskList: React.FC = () => {
     if (!currentTask || !computationResult) return;
     try {
       setPublishLoading(true);
-      const storedWallet = localStorage.getItem('wallet');
+      const storedWallet = localStorage.getItem('bank_wallet');
       if (!storedWallet) {
         messageApi.error('Please connect your account first!');
         return;

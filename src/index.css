@@ -2,8 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --primary-color: #6366f1;      /* 主色调：现代靛蓝色 */
+  --primary-light: #818cf8;      /* 主色调亮色 */
+  --primary-dark: #4f46e5;       /* 主色调暗色 */
+  --bg-color: #f8fafc;           /* 背景色：浅灰白 */
+  --card-bg: #ffffff;            /* 卡片背景：纯白 */
+  --text-primary: #1e293b;       /* 主要文字：深蓝灰 */
+  --text-secondary: #64748b;     /* 次要文字：中灰 */
+  --border-color: #e2e8f0;       /* 边框颜色：浅灰 */
+}
+
 body {
-  background-color: #f0f2f5;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
 }
 
 .ant-layout {
@@ -23,15 +35,19 @@ body {
 }
 
 .ant-card {
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  background: var(--card-bg);
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+              0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: none;
+  transition: all 0.3s ease;
   margin-bottom: 24px;
 }
 
-.ant-card-hoverable:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+.ant-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 
+              0 4px 6px -2px rgba(0, 0, 0, 0.05);
   transform: translateY(-2px);
-  transition: all 0.3s ease;
 }
 
 .section-title {
@@ -49,24 +65,37 @@ body {
 
 /* Custom Table Styles */
 .custom-table .ant-table {
-  @apply rounded-lg overflow-hidden;
+  background: var(--card-bg);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .custom-table .ant-table-thead > tr > th {
-  @apply bg-gray-50 text-gray-700 font-semibold;
+  background: var(--bg-color);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+  font-weight: 600;
+}
+
+.custom-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--border-color);
 }
 
 .custom-table .ant-table-tbody > tr:hover > td {
-  @apply bg-blue-50;
+  background: rgba(99, 102, 241, 0.05) !important;
 }
 
 /* Custom Modal Styles */
 .custom-modal .ant-modal-content {
-  @apply rounded-lg;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 
+              0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 .custom-modal .ant-modal-header {
-  @apply rounded-t-lg border-b border-gray-200 bg-gray-50;
+  border-radius: 16px 16px 0 0;
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 24px;
 }
 
 .custom-modal .ant-modal-body {
@@ -75,9 +104,59 @@ body {
 
 /* Custom Button Hover Effects */
 .ant-btn-primary {
-  @apply transition-all duration-300;
+  background: var(--primary-color);
+  border: none;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+  transition: all 0.3s ease;
 }
 
 .ant-btn-primary:hover {
-  @apply shadow-md transform -translate-y-0.5;
+  background: var(--primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(99, 102, 241, 0.25);
+}
+
+/* 表单输入框样式 */
+.ant-input, .ant-select-selector {
+  border-radius: 8px !important;
+  border: 1px solid var(--border-color) !important;
+  transition: all 0.3s ease;
+}
+
+.ant-input:hover, .ant-select-selector:hover {
+  border-color: var(--primary-light) !important;
+}
+
+.ant-input:focus, .ant-select-selector:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Badge样式 */
+.ant-badge .ant-badge-count {
+  background: var(--primary-color);
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+}
+
+/* Tag样式 */
+.ant-tag {
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-weight: 500;
+}
+
+/* 标题样式 */
+h1, h2, h3, h4, h5 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* 添加动画效果 */
+.ant-card, .ant-btn, .ant-input, .ant-select-selector {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 图标样式 */
+.anticon {
+  transition: transform 0.3s;
 }

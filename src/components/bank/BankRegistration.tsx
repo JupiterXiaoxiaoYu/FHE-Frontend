@@ -1,41 +1,67 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, message, Typography, Space, Row, Col, Statistic } from 'antd';
-import { 
-  BankOutlined, 
-  KeyOutlined, 
-  SafetyCertificateOutlined,
-  CopyOutlined,
-  LogoutOutlined 
-} from '@ant-design/icons';
-import { ethers } from 'ethers';
-import contractConfig from '../../config/contracts';
-import { eventBus } from '../../utils/eventBus';
+import { Form, Input, Button, message, Typography, Row, Col, Card, Badge, Tooltip } from 'antd';
+import { BankOutlined, KeyOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons';
+import * as ethers from 'ethers';
+import { contractConfig } from '../../config/contracts';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Title } = Typography;
 
 interface BankInfo {
   weId: string;
   publicKey: string;
-  registrationTime?: number;
-  id?: number;
-  isActive?: boolean;
+  registrationTime: number;
+  id: number;
+  isActive: boolean;
 }
 
 export const BankRegistration: React.FC = () => {
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
   const [bankInfo, setBankInfo] = useState<BankInfo | null>(null);
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   useEffect(() => {
-    const storedInfo = localStorage.getItem('bankInfo');
-    if (storedInfo) {
-      setBankInfo(JSON.parse(storedInfo));
-    }
-  }, []);
+    const loadBankInfo = () => {
+      const storedInfo = localStorage.getItem('bankInfo');
+      if (storedInfo) {
+        setBankInfo(JSON.parse(storedInfo));
+      } else {
+        setBankInfo(null);
+        form.resetFields();
+      }
+    };
+
+    loadBankInfo();
+
+    const handleStorageChange = () => {
+      loadBankInfo();
+      setForceUpdate(prev => prev + 1);
+    };
+
+    const handleBankWalletChange = () => {
+      // 当银行钱包被撤销时,清除银行信息
+      const bankWallet = localStorage.getItem('bank_wallet');
+      if (!bankWallet) {
+        localStorage.removeItem('bankInfo');
+        setBankInfo(null);
+        form.resetFields();
+        setForceUpdate(prev => prev + 1);
+      }
+      loadBankInfo();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('bankWalletChanged', handleBankWalletChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('bankWalletChanged', handleBankWalletChange);
+    };
+  }, [form]);
 
   const handleRegister = async (values: { weId: string }) => {
     try {
-      const storedKeys = localStorage.getItem('wallet');
+      const storedKeys = localStorage.getItem('bank_wallet');
       if (!storedKeys) {
         messageApi.error('Please generate bank keys first!');
         return;
@@ -76,6 +102,7 @@ export const BankRegistration: React.FC = () => {
       
       localStorage.setItem('bankInfo', JSON.stringify(newBankInfo));
       setBankInfo(newBankInfo);
+      setForceUpdate(prev => prev + 1);
       messageApi.success('Bank registration successful!');
       form.resetFields();
     } catch (error) {
@@ -88,7 +115,7 @@ export const BankRegistration: React.FC = () => {
     try {
       // 清除所有本地存储的数据
       const keysToRemove = [
-        'wallet',              
+        'bank_wallet',              
         'bankInfo',           
         'encryptedDataList',  
         'encryptionHistory',  
@@ -104,11 +131,10 @@ export const BankRegistration: React.FC = () => {
       // 重置所有相关状态
       setBankInfo(null);
       form.resetFields();
+      setForceUpdate(prev => prev + 1);
       
       // 发出事件通知其他组件
-      eventBus.emit('bankRevoked');
-      
-      // 强制刷新组件状态
+      window.dispatchEvent(new Event('bankWalletChanged'));
       window.dispatchEvent(new Event('storage'));
       
       messageApi.success('Bank registration and all related data have been revoked successfully!');
@@ -118,124 +144,105 @@ export const BankRegistration: React.FC = () => {
     }
   };
 
-  // 添加 storage 事件监听
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const storedInfo = localStorage.getItem('bankInfo');
-      if (!storedInfo) {
-        setBankInfo(null);
-        form.resetFields();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [form]);
-
   return (
     <>
       {contextHolder}
-      {!bankInfo ? (
-        <div className="max-w-xl mx-auto">
-          <Form
-            form={form}
-            onFinish={handleRegister}
-            layout="vertical"
-          >
-            <Form.Item
-              name="weId"
-              label={<Text strong>Bank WeID</Text>}
-              rules={[{ required: true, message: 'Please input bank WeID!' }]}
-            >
-              <Input 
-                prefix={<BankOutlined className="text-gray-400" />}
-                placeholder="Enter bank WeID"
-                className="rounded-lg"
-              />
-            </Form.Item>
-
-            <Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                icon={<SafetyCertificateOutlined />}
-                size="large"
-                block
-                className="rounded-lg"
-              >
-                Register Bank
-              </Button>
-            </Form.Item>
-          </Form>
-        </div>
-      ) : (
-        <div>
-          <Row gutter={24} align="middle">
-            {/* 左侧：基本信息 */}
-            <Col span={16}>
-              <div className="flex items-start space-x-4">
-                <div className="flex-1">
-                  <Title level={4} className="mb-4">Bank Information</Title>
-                  
-                  <Space direction="vertical" className="w-full" size="large">
+      <div className="space-y-6" key={forceUpdate}>
+        {bankInfo ? (
+          <div>
+            <Row gutter={24} align="middle">
+              {/* 左侧：基本信息 */}
+              <Col span={16}>
+                <div className="flex items-start space-x-4">
+                  <div className="flex-grow space-y-4">
                     <div>
                       <Text type="secondary">Bank WeID</Text>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Text strong className="font-mono">{bankInfo.weId}</Text>
-                        <Button 
-                          type="text" 
-                          icon={<CopyOutlined />} 
-                          size="small"
-                          onClick={() => {
-                            navigator.clipboard.writeText(bankInfo.weId);
-                            messageApi.success('WeID copied to clipboard!');
-                          }}
-                        />
+                      <div className="font-mono bg-gray-50 p-2 rounded mt-1">
+                        {bankInfo.weId}
                       </div>
                     </div>
                     <div>
                       <Text type="secondary">Public Key</Text>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Text strong className="font-mono truncate max-w-md">
-                          {bankInfo.publicKey}
-                        </Text>
-                        <Button 
-                          type="text" 
-                          icon={<CopyOutlined />} 
-                          size="small"
-                          onClick={() => {
-                            navigator.clipboard.writeText(bankInfo.publicKey);
-                            messageApi.success('Public key copied to clipboard!');
-                          }}
-                        />
+                      <div className="font-mono bg-gray-50 p-2 rounded mt-1 break-all">
+                        {bankInfo.publicKey}
                       </div>
                     </div>
-                  </Space>
+                    <div className="flex items-center space-x-4">
+                      <div>
+                        <Text type="secondary">Registration Time</Text>
+                        <div className="mt-1">
+                          {new Date(bankInfo.registrationTime).toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <Text type="secondary">Bank ID</Text>
+                        <div className="mt-1">#{bankInfo.id}</div>
+                      </div>
+                      <div>
+                        <Text type="secondary">Status</Text>
+                        <div className="mt-1">
+                          <Badge 
+                            status={bankInfo.isActive ? "success" : "error"} 
+                            text={bankInfo.isActive ? "Active" : "Inactive"}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </Col>
-
-            {/* 右侧：状态和操作 */}
-            <Col span={8}>
-              <div className="flex flex-col items-end space-y-4">
-                <Statistic 
-                  title="Registration Time" 
-                  value={new Date(bankInfo.registrationTime || Date.now()).toLocaleDateString()} 
-                  prefix={<KeyOutlined />}
+              </Col>
+              
+              {/* 右侧：操作按钮 */}
+              <Col span={8} className="text-right">
+                <Tooltip title="Revoke bank registration and clear all data">
+                  <Button 
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={handleRevoke}
+                    size="large"
+                  >
+                    Revoke Registration
+                  </Button>
+                </Tooltip>
+              </Col>
+            </Row>
+          </div>
+        ) : (
+          <Card>
+            <Title level={4} className="mb-6 flex items-center">
+              <BankOutlined className="mr-2" />
+              Bank Registration
+            </Title>
+            <Form
+              form={form}
+              onFinish={handleRegister}
+              layout="vertical"
+            >
+              <Form.Item
+                name="weId"
+                label="Bank WeID"
+                rules={[{ required: true, message: 'Please input your WeID!' }]}
+              >
+                <Input 
+                  prefix={<KeyOutlined className="text-gray-400" />}
+                  placeholder="Enter your WeID"
                 />
+              </Form.Item>
+
+              <Form.Item>
                 <Button 
-                  danger 
-                  icon={<LogoutOutlined />}
-                  onClick={handleRevoke}
-                  className="rounded-lg"
+                  type="primary" 
+                  htmlType="submit"
+                  icon={<CheckCircleOutlined />}
+                  size="large"
                 >
-                  Revoke Registration
+                  Register Bank
                 </Button>
-              </div>
-            </Col>
-          </Row>
-        </div>
-      )}
+              </Form.Item>
+            </Form>
+          </Card>
+        )}
+      </div>
     </>
   );
 };

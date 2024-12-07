@@ -160,7 +160,7 @@ export const DataEncryption: React.FC = () => {
         return;
       }
 
-      const storedKeys = localStorage.getItem('wallet');
+      const storedKeys = localStorage.getItem('bank_wallet');
       if (!storedKeys) {
         messageApi.error('Bank wallet not found!');
         return;

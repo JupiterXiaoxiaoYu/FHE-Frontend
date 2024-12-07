@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Typography, Space, message, Input, Popconfirm } from 'antd';
-import { WalletOutlined, CopyOutlined, EyeOutlined, EyeInvisibleOutlined, ImportOutlined, DeleteOutlined } from '@ant-design/icons';
+import { BankOutlined, CopyOutlined, EyeOutlined, EyeInvisibleOutlined, ImportOutlined, DeleteOutlined } from '@ant-design/icons';
 import { ethers } from 'ethers';
 
 const { Text, Paragraph } = Typography;
@@ -10,19 +10,39 @@ interface WalletInfo {
   privateKey: string;
 }
 
-export const WalletModal: React.FC = () => {
+export const BankWalletModal: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [importPrivateKey, setImportPrivateKey] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   useEffect(() => {
-    const storedWallet = localStorage.getItem('wallet');
-    if (storedWallet) {
-      setWallet(JSON.parse(storedWallet));
-    }
+    const loadWallet = () => {
+      const storedWallet = localStorage.getItem('bank_wallet');
+      if (storedWallet) {
+        setWallet(JSON.parse(storedWallet));
+      } else {
+        setWallet(null);
+      }
+    };
+
+    loadWallet();
+    
+    const handleStorageChange = () => {
+      loadWallet();
+      setForceUpdate(prev => prev + 1);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('bankWalletChanged', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('bankWalletChanged', handleStorageChange);
+    };
   }, []);
 
   const generateWallet = () => {
@@ -32,9 +52,9 @@ export const WalletModal: React.FC = () => {
       privateKey: newWallet.privateKey,
     };
     setWallet(walletInfo);
-    localStorage.setItem('wallet', JSON.stringify(walletInfo));
-    window.dispatchEvent(new Event('walletChanged'));
-    messageApi.success('New wallet generated successfully!');
+    localStorage.setItem('bank_wallet', JSON.stringify(walletInfo));
+    window.dispatchEvent(new Event('bankWalletChanged'));
+    messageApi.success('New bank wallet generated successfully!');
   };
 
   const handleImportPrivateKey = () => {
@@ -50,11 +70,11 @@ export const WalletModal: React.FC = () => {
       };
       
       setWallet(walletInfo);
-      localStorage.setItem('wallet', JSON.stringify(walletInfo));
-      window.dispatchEvent(new Event('walletChanged'));
+      localStorage.setItem('bank_wallet', JSON.stringify(walletInfo));
+      window.dispatchEvent(new Event('bankWalletChanged'));
       setShowImport(false);
       setImportPrivateKey('');
-      messageApi.success('Wallet imported successfully!');
+      messageApi.success('Bank wallet imported successfully!');
     } catch (error) {
       messageApi.error('Invalid private key!');
       console.error('Import failed:', error);
@@ -62,11 +82,14 @@ export const WalletModal: React.FC = () => {
   };
 
   const handleRevokeWallet = () => {
-    localStorage.removeItem('wallet');
+    localStorage.removeItem('bank_wallet');
     setWallet(null);
     setShowPrivateKey(false);
-    window.dispatchEvent(new Event('walletChanged'));
-    messageApi.success('Wallet revoked successfully!');
+    window.dispatchEvent(new Event('bankWalletChanged'));
+    setForceUpdate(prev => prev + 1);
+    window.dispatchEvent(new Event('storage'));
+    messageApi.success('Bank wallet revoked successfully!');
+    setIsModalOpen(false);
   };
 
   const handleCopy = (text: string, type: 'address' | 'privateKey') => {
@@ -78,15 +101,15 @@ export const WalletModal: React.FC = () => {
     <>
       {contextHolder}
       <Button 
-        icon={<WalletOutlined />}
+        icon={<BankOutlined />}
         onClick={() => setIsModalOpen(true)}
         type="primary"
       >
-        Account
+        Bank Account
       </Button>
 
       <Modal
-        title="Account Management"
+        title="Bank Account Management"
         open={isModalOpen}
         onCancel={() => {
           setIsModalOpen(false);
@@ -205,4 +228,4 @@ export const WalletModal: React.FC = () => {
       </Modal>
     </>
   );
-}; 
+} 

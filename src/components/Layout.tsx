@@ -3,7 +3,8 @@ import { Outlet } from 'react-router-dom';
 import { Layout as AntLayout, Menu } from 'antd';
 import { Link } from 'react-router-dom';
 import { HomeOutlined, UserOutlined, BankOutlined, ExperimentOutlined } from '@ant-design/icons';
-import { WalletModal } from './wallet/WalletModal';
+import { ClientWalletModal } from './wallet/ClientWalletModal';
+import { BankWalletModal } from './wallet/BankWalletModal';
 // import { ConnectKitButton } from "connectkit";
 
 const { Header, Content } = AntLayout;
@@ -72,8 +73,9 @@ export const Layout: React.FC = () => {
             <Link to="/test" className="text-gray-800 hover:text-blue-600 transition-colors">Test</Link>
           </Menu.Item> */}
         </Menu>
-        <div style={{ marginLeft: 'auto' }}>
-          <WalletModal />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px' }}>
+          <ClientWalletModal />
+          <BankWalletModal />
         </div>
       </Header>
       

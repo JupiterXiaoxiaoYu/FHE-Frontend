@@ -9,7 +9,8 @@ import {
   CloudUploadOutlined,
   PlusOutlined,
   BankOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import { Task } from '../../types';
 import { ethers } from 'ethers';
@@ -88,6 +89,8 @@ export const TaskResults: React.FC = () => {
   const [publishedTasks, setPublishedTasks] = useState<Task[]>([]);
   const [expandedResult, setExpandedResult] = useState(false);
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
+  const [decrypting, setDecrypting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     refreshTasks();
@@ -96,7 +99,7 @@ export const TaskResults: React.FC = () => {
   // 将 handleViewDecryptedResult 移到组件内部
   const handleViewDecryptedResult = async (task: Task) => {
     try {
-      const storedWallet = localStorage.getItem('wallet');
+      const storedWallet = localStorage.getItem('client_wallet');
       if (!storedWallet) {
         messageApi.error('Please connect your account first!');
         return;
@@ -157,15 +160,17 @@ export const TaskResults: React.FC = () => {
   };
 
   const handleDecryptAndSign = async () => {
-    if (!currentTask || !taskResult) return;
     try {
-      const storedWallet = localStorage.getItem('wallet');
+      setDecrypting(true);
+      const storedWallet = localStorage.getItem('client_wallet');
       if (!storedWallet) {
-        messageApi.error('Please connect your account first!');
+        messageApi.error('Please connect your client account first!');
         return;
       }
 
       const wallet = JSON.parse(storedWallet);
+      const provider = new ethers.providers.JsonRpcProvider('/api');
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
       
       const decryptResponse = await fheApi.decrypt(
         wallet.address,
@@ -190,22 +195,20 @@ export const TaskResults: React.FC = () => {
       }));
       setIsDecrypted(true);
       messageApi.success('Result decrypted and signed successfully!');
-    } catch (error: any) {
-      console.error('Decrypt and sign failed:', error);
-      if (error.response?.data?.message) {
-        messageApi.error('Failed to decrypt: ' + error.response.data.message);
-      } else {
-        messageApi.error('Failed to decrypt and sign: ' + error.message);
-      }
+    } catch (error) {
+      messageApi.error('Failed to decrypt and sign result!');
+      console.error('Decryption failed:', error);
+    } finally {
+      setDecrypting(false);
     }
   };
 
   const handlePublishAndFinish = async () => {
-    if (!currentTask || !taskResult || !taskResult.signature) return;
     try {
-      const storedWallet = localStorage.getItem('wallet');
+      setPublishing(true);
+      const storedWallet = localStorage.getItem('client_wallet');
       if (!storedWallet) {
-        messageApi.error('Please connect your account first!');
+        messageApi.error('Please connect your client account first!');
         return;
       }
 
@@ -231,15 +234,17 @@ export const TaskResults: React.FC = () => {
       setTaskResult(null);
       setIsDecrypted(false);
       refreshTasks();
-    } catch (error: any) {
-      messageApi.error('Failed to publish result: ' + error.message);
-      console.error('Result publishing failed:', error);
+    } catch (error) {
+      messageApi.error('Failed to publish result!');
+      console.error('Publishing failed:', error);
+    } finally {
+      setPublishing(false);
     }
   };
 
   const handleNewTask = async (values: BusinessTaskRequest) => {
     try {
-      const storedWallet = localStorage.getItem('wallet');
+      const storedWallet = localStorage.getItem('client_wallet');
       if (!storedWallet) {
         messageApi.error('Please connect your account first!');
         return;
@@ -273,10 +278,12 @@ export const TaskResults: React.FC = () => {
         const taskId = taskCreatedEvent.args.taskId.toString();
         messageApi.success(`Business task created successfully! Task ID: ${taskId}`);
         
+        // Close modal and reset form
         setIsNewTaskModalVisible(false);
         form.resetFields();
 
-        // await refreshTasks();
+        // Refresh tasks after successful creation
+        await refreshTasks();
       } else {
         throw new Error('Task creation event not found in transaction receipt');
       }
@@ -296,7 +303,7 @@ export const TaskResults: React.FC = () => {
 
   const refreshTasks = async () => {
     try {
-      const storedWallet = localStorage.getItem('wallet');
+      const storedWallet = localStorage.getItem('client_wallet');
       if (!storedWallet) return;
 
       const wallet = JSON.parse(storedWallet);
@@ -361,10 +368,10 @@ export const TaskResults: React.FC = () => {
       key: 'status',
       render: (status: string) => (
         <Tag
-          icon={status === 'completed' ? <CheckCircleOutlined /> : <SyncOutlined spin />}
-          color={status === 'completed' ? 'success' : 'processing'}
+          icon={status === 'completed' ? <InfoCircleOutlined /> : status === 'published' ? <CheckCircleOutlined /> : <SyncOutlined spin />}
+          color={status === 'published' ? 'success' : 'processing'}
         >
-          {status.toUpperCase()}
+          {status.toUpperCase()}  
         </Tag>
       ),
     },
